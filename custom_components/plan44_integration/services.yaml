@@ -1,0 +1,69 @@
+create_virtual_device:
+  name: Create virtual device
+  description: Export a Home Assistant entity as a virtual bidirectional plan44 device.
+  fields:
+    entry_id:
+      required: false
+      selector:
+        text: {}
+    entity_id:
+      required: true
+      selector:
+        entity: {}
+    kind:
+      required: true
+      selector:
+        select:
+          options:
+            - switch
+            - light
+            - sensor
+            - binary_sensor
+    name:
+      required: false
+      selector:
+        text: {}
+    room_hint:
+      required: false
+      selector:
+        text: {}
+    allow_reverse:
+      required: false
+      default: true
+      selector:
+        boolean: {}
+
+remove_virtual_device:
+  name: Remove virtual device
+  description: Remove a mapped plan44 virtual device.
+  fields:
+    entry_id:
+      required: false
+      selector:
+        text: {}
+    entity_id:
+      required: true
+      selector:
+        entity: {}
+
+republish_virtual_devices:
+  name: Republish virtual devices
+  description: Re-register all mapped virtual devices at plan44.
+  fields:
+    entry_id:
+      required: false
+      selector:
+        text: {}
+
+push_entity_state:
+  name: Push entity state
+  description: Force-send the current entity state to plan44.
+  fields:
+    entry_id:
+      required: false
+      selector:
+        text: {}
+    entity_id:
+      required: true
+      selector:
+        entity: {}

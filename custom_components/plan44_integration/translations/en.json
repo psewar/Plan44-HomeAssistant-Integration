@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "plan44 Integration",
+        "description": "Configure the connection to plan44.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "vdc_model_name": "VDC model name",
+          "auto_republish": "Automatically republish virtual devices on startup",
+          "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
+          "reconnect_interval": "Reconnect interval in seconds",
+          "blocklist_integrations": "Blocked integrations (comma-separated)",
+          "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure plan44 connection",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "vdc_model_name": "VDC model name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to plan44"
+    },
+    "abort": {
+      "reconfigure_successful": "Configuration updated successfully"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "plan44 options",
+        "data": {
+          "auto_republish": "Automatically republish virtual devices on startup",
+          "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
+          "reconnect_interval": "Reconnect interval in seconds",
+          "blocklist_integrations": "Blocked integrations (comma-separated)",
+          "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)"
+        }
+      }
+    }
+  }
+}
