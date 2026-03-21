@@ -71,11 +71,14 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall):
         for entry in entries:
             if entry.entry_id == requested_entry_id:
                 return entry
-        raise HomeAssistantError(f"Unknown plan44 entry_id: {requested_entry_id}")
+        raise HomeAssistantError(
+            f"Unknown plan44 entry_id: {requested_entry_id}"
+        )
 
     if len(entries) > 1:
         raise HomeAssistantError(
-            "Multiple plan44 entries configured; specify entry_id in the service call"
+            "Multiple plan44 entries configured; "
+            "specify entry_id in the service call"
         )
 
     return entries[0]
@@ -166,10 +169,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         client=client,
         store=store,
         reverse_enabled=entry.options.get(
-            CONF_REVERSE_ENABLED, entry.data[CONF_REVERSE_ENABLED]
+            CONF_REVERSE_ENABLED,
+            entry.data[CONF_REVERSE_ENABLED],
         ),
         auto_republish=entry.options.get(
-            CONF_AUTO_REPUBLISH, entry.data[CONF_AUTO_REPUBLISH]
+            CONF_AUTO_REPUBLISH,
+            entry.data[CONF_AUTO_REPUBLISH],
         ),
     )
 
@@ -184,7 +189,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         store=store,
     )
 
-    entry.async_on_unload(lambda: _LOGGER.debug("Unloading plan44 entry %s", entry.entry_id))
+    entry.async_on_unload(
+        lambda: _LOGGER.debug("Unloading plan44 entry %s", entry.entry_id)
+    )
     return True
 
 

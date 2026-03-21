@@ -165,3 +165,18 @@ ruff format --check .
 ## Notes
 
 This repository is an MVP foundation. plan44 message semantics may need refinement against a real target system.
+
+
+## Running tests on Windows
+
+`pytest-homeassistant-custom-component` imports parts of Home Assistant that expect
+POSIX modules such as `fcntl`. Because of that, the test suite should be run in
+**WSL, Docker, or another Linux environment**, not in native Windows Python.
+
+Recommended local test setup on Windows:
+
+- use WSL2 with Python 3.12 or 3.13
+- or run the tests in a Linux container
+
+The integration itself can still be edited on Windows; this limitation affects
+mainly the Home Assistant test environment.

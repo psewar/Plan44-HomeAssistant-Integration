@@ -40,7 +40,10 @@ class Plan44Client:
         if self.is_connected:
             return
 
-        self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+        self._reader, self._writer = await asyncio.open_connection(
+            self.host,
+            self.port,
+        )
         _LOGGER.info("Connected to plan44 at %s:%s", self.host, self.port)
 
         await self.async_send({"message": "initvdc", "model": self.vdc_model_name})
@@ -86,7 +89,12 @@ class Plan44Client:
             }
         )
 
-    async def async_register_sensor(self, uid: str, name: str, unit: str | None = None) -> None:
+    async def async_register_sensor(
+        self,
+        uid: str,
+        name: str,
+        unit: str | None = None,
+    ) -> None:
         await self.async_send(
             {
                 "message": "init",

@@ -5,7 +5,11 @@ from homeassistant.core import HomeAssistant
 from custom_components.plan44_integration.const import DOMAIN
 
 
-async def test_setup_entry(hass: HomeAssistant, config_entry, mock_plan44_client) -> None:
+async def test_setup_entry(
+    hass: HomeAssistant,
+    config_entry,
+    mock_plan44_client,
+) -> None:
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 

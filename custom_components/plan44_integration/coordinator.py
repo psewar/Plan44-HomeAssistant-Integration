@@ -56,7 +56,10 @@ class Plan44Coordinator:
         self._reconnect_task: asyncio.Task | None = None
 
         self._reconnect_interval = int(
-            entry.options.get(CONF_RECONNECT_INTERVAL, entry.data[CONF_RECONNECT_INTERVAL])
+            entry.options.get(
+                CONF_RECONNECT_INTERVAL,
+                entry.data[CONF_RECONNECT_INTERVAL],
+            )
         )
         self._blocked_integrations = self._parse_csv(
             entry.options.get(
@@ -91,7 +94,9 @@ class Plan44Coordinator:
     async def async_handle_disconnect(self) -> None:
         if self._reconnect_task and not self._reconnect_task.done():
             return
-        self._reconnect_task = self.hass.async_create_task(self._async_reconnect_loop())
+        self._reconnect_task = self.hass.async_create_task(
+            self._async_reconnect_loop()
+        )
 
     async def _async_reconnect_loop(self) -> None:
         while True:
@@ -147,7 +152,12 @@ class Plan44Coordinator:
         source_domain = await self._async_get_entity_platform(entity_id)
 
         await self.client.async_ensure_connected()
-        await self._async_register_with_plan44(uid, display_name, kind, state.attributes)
+        await self._async_register_with_plan44(
+            uid,
+            display_name,
+            kind,
+            state.attributes,
+        )
         await self.store.async_add_export(
             entity_id=entity_id,
             uid=uid,
@@ -180,7 +190,11 @@ class Plan44Coordinator:
             )
             await self.async_forward_entity_state(entity_id, force=True)
 
-    async def async_forward_entity_state(self, entity_id: str, force: bool = False) -> None:
+    async def async_forward_entity_state(
+        self,
+        entity_id: str,
+        force: bool = False,
+    ) -> None:
         cfg = self.store.get_export(entity_id)
         if not cfg or not cfg.get("enabled", True):
             return
@@ -248,7 +262,12 @@ class Plan44Coordinator:
 
         await self.async_apply_reverse_command(entity_id, kind, value)
 
-    async def async_apply_reverse_command(self, entity_id: str, kind: str, value: int | float) -> None:
+    async def async_apply_reverse_command(
+        self,
+        entity_id: str,
+        kind: str,
+        value: int | float,
+    ) -> None:
         now = time.monotonic()
         last_origin = self._last_origin_by_entity.get(entity_id)
         last_ts = self._last_write_ts_by_entity.get(entity_id, 0.0)
@@ -269,7 +288,12 @@ class Plan44Coordinator:
             else:
                 service = "turn_off"
 
-        await self.hass.services.async_call(domain, service, service_data, blocking=True)
+        await self.hass.services.async_call(
+            domain,
+            service,
+            service_data,
+            blocking=True,
+        )
 
         self._last_origin_by_entity[entity_id] = ORIGIN_P44
         self._last_write_ts_by_entity[entity_id] = now
@@ -300,7 +324,8 @@ class Plan44Coordinator:
         entity_domain = entity_id.split(".", 1)[0]
         if entity_domain != kind:
             raise HomeAssistantError(
-                f"Entity domain '{entity_domain}' does not match requested kind '{kind}'"
+                "Entity domain "
+                f"'{entity_domain}' does not match requested kind '{kind}'"
             )
 
         for prefix in self._blocked_entity_prefixes:
@@ -312,7 +337,8 @@ class Plan44Coordinator:
         source_platform = await self._async_get_entity_platform(entity_id)
         if source_platform and source_platform.lower() in self._blocked_integrations:
             raise HomeAssistantError(
-                f"Entity '{entity_id}' originates from blocked integration '{source_platform}'"
+                f"Entity '{entity_id}' originates from blocked integration "
+                f"'{source_platform}'"
             )
 
         if kind == KIND_SENSOR:
@@ -333,8 +359,16 @@ class Plan44Coordinator:
     @staticmethod
     def _parse_csv(value: str | list[str]) -> set[str]:
         if isinstance(value, list):
-            return {item.strip().lower() for item in value if item and item.strip()}
-        return {item.strip().lower() for item in value.split(",") if item and item.strip()}
+            return {
+                item.strip().lower()
+                for item in value
+                if item and item.strip()
+            }
+        return {
+            item.strip().lower()
+            for item in value.split(",")
+            if item and item.strip()
+        }
 
     @staticmethod
     def _light_state_to_p44_value(state) -> int:
@@ -345,7 +379,9 @@ class Plan44Coordinator:
         if brightness is None:
             return 100
 
-        scaled = round((int(brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE)
+        scaled = round(
+            (int(brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE
+        )
         return max(LIGHT_ON_THRESHOLD, min(P44_MAX_CHANNEL_VALUE, scaled))
 
     @staticmethod

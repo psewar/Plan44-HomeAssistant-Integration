@@ -52,20 +52,30 @@ def _options_schema(user_input: dict | None = None) -> vol.Schema:
         {
             vol.Required(
                 CONF_AUTO_REPUBLISH,
-                default=user_input.get(CONF_AUTO_REPUBLISH, DEFAULT_AUTO_REPUBLISH),
+                default=user_input.get(
+                    CONF_AUTO_REPUBLISH,
+                    DEFAULT_AUTO_REPUBLISH,
+                ),
             ): bool,
             vol.Required(
                 CONF_REVERSE_ENABLED,
-                default=user_input.get(CONF_REVERSE_ENABLED, DEFAULT_REVERSE_ENABLED),
+                default=user_input.get(
+                    CONF_REVERSE_ENABLED,
+                    DEFAULT_REVERSE_ENABLED,
+                ),
             ): bool,
             vol.Required(
                 CONF_RECONNECT_INTERVAL,
-                default=user_input.get(CONF_RECONNECT_INTERVAL, DEFAULT_RECONNECT_INTERVAL),
+                default=user_input.get(
+                    CONF_RECONNECT_INTERVAL,
+                    DEFAULT_RECONNECT_INTERVAL,
+                ),
             ): int,
             vol.Optional(
                 CONF_BLOCKLIST_INTEGRATIONS,
                 default=user_input.get(
-                    CONF_BLOCKLIST_INTEGRATIONS, DEFAULT_BLOCKLIST_INTEGRATIONS
+                    CONF_BLOCKLIST_INTEGRATIONS,
+                    DEFAULT_BLOCKLIST_INTEGRATIONS,
                 ),
             ): str,
             vol.Optional(
@@ -108,11 +118,21 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_HOST): str,
                 vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
-                vol.Required(CONF_VDC_MODEL_NAME, default=DEFAULT_VDC_MODEL_NAME): str,
-                vol.Required(CONF_AUTO_REPUBLISH, default=DEFAULT_AUTO_REPUBLISH): bool,
-                vol.Required(CONF_REVERSE_ENABLED, default=DEFAULT_REVERSE_ENABLED): bool,
                 vol.Required(
-                    CONF_RECONNECT_INTERVAL, default=DEFAULT_RECONNECT_INTERVAL
+                    CONF_VDC_MODEL_NAME,
+                    default=DEFAULT_VDC_MODEL_NAME,
+                ): str,
+                vol.Required(
+                    CONF_AUTO_REPUBLISH,
+                    default=DEFAULT_AUTO_REPUBLISH,
+                ): bool,
+                vol.Required(
+                    CONF_REVERSE_ENABLED,
+                    default=DEFAULT_REVERSE_ENABLED,
+                ): bool,
+                vol.Required(
+                    CONF_RECONNECT_INTERVAL,
+                    default=DEFAULT_RECONNECT_INTERVAL,
                 ): int,
                 vol.Optional(
                     CONF_BLOCKLIST_INTEGRATIONS,
@@ -125,9 +145,16 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+        )
 
-    async def async_step_reconfigure(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_reconfigure(
+        self,
+        user_input: dict | None = None,
+    ) -> FlowResult:
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
 
@@ -143,27 +170,35 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 self.hass.config_entries.async_update_entry(
                     entry,
-                    data={
-                        **entry.data,
-                        CONF_HOST: user_input[CONF_HOST],
-                        CONF_PORT: user_input[CONF_PORT],
-                        CONF_VDC_MODEL_NAME: user_input[CONF_VDC_MODEL_NAME],
-                    },
+                    data={**entry.data, **user_input},
                 )
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
-                vol.Required(CONF_PORT, default=entry.data[CONF_PORT]): int,
+                vol.Required(
+                    CONF_HOST,
+                    default=entry.data.get(CONF_HOST, DEFAULT_PORT),
+                ): str,
+                vol.Required(
+                    CONF_PORT,
+                    default=entry.data.get(CONF_PORT, DEFAULT_PORT),
+                ): int,
                 vol.Required(
                     CONF_VDC_MODEL_NAME,
-                    default=entry.data[CONF_VDC_MODEL_NAME],
+                    default=entry.data.get(
+                        CONF_VDC_MODEL_NAME,
+                        DEFAULT_VDC_MODEL_NAME,
+                    ),
                 ): str,
             }
         )
-        return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
+            errors=errors,
+        )
 
     @staticmethod
     def async_get_options_flow(config_entry):

@@ -6,7 +6,10 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 
 
-async def async_register(hass: HomeAssistant, register: system_health.SystemHealthRegistration) -> None:
+async def async_register(
+    hass: HomeAssistant,
+    register: system_health.SystemHealthRegistration,
+) -> None:
     register.async_register_info(system_health_info)
 
 

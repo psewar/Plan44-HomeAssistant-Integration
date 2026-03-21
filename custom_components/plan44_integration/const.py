@@ -26,7 +26,9 @@ DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"
 DEFAULT_AUTO_REPUBLISH = True
 DEFAULT_REVERSE_ENABLED = True
 DEFAULT_RECONNECT_INTERVAL = 10
-DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
+DEFAULT_BLOCKLIST_INTEGRATIONS = (
+    "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
+)
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 
 SERVICE_CREATE_VIRTUAL_DEVICE = "create_virtual_device"
@@ -34,15 +36,15 @@ SERVICE_REMOVE_VIRTUAL_DEVICE = "remove_virtual_device"
 SERVICE_REPUBLISH_VIRTUAL_DEVICES = "republish_virtual_devices"
 SERVICE_PUSH_ENTITY_STATE = "push_entity_state"
 
-STORE_VERSION = 3
+STORE_VERSION = 2
 STORE_KEY_EXPORTS = "exports"
 
+ATTR_ENTRY_ID = "entry_id"
 ATTR_ENTITY_ID = "entity_id"
 ATTR_KIND = "kind"
 ATTR_NAME = "name"
 ATTR_ROOM_HINT = "room_hint"
 ATTR_ALLOW_REVERSE = "allow_reverse"
-ATTR_ENTRY_ID = "entry_id"
 
 KIND_SWITCH = "switch"
 KIND_LIGHT = "light"
@@ -69,9 +71,9 @@ P44_MAX_CHANNEL_VALUE = 100
 
 @dataclass
 class Plan44RuntimeData:
-    client: "Plan44Client"
-    coordinator: "Plan44Coordinator"
-    store: "Plan44Store"
+    client: Plan44Client
+    coordinator: Plan44Coordinator
+    store: Plan44Store
 
 
 Plan44ConfigEntry = ConfigEntry[Plan44RuntimeData]
