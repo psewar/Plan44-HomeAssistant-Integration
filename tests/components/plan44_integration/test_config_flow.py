@@ -60,3 +60,13 @@ async def test_user_flow_cannot_connect(hass: HomeAssistant) -> None:
 
     assert result2["type"] == "form"
     assert result2["errors"] == {"base": "cannot_connect"}
+
+
+async def test_options_flow_opens(hass: HomeAssistant, config_entry) -> None:
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(config_entry.entry_id)
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
