@@ -4,9 +4,8 @@ import logging
 from typing import Any, cast
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntryNotReady
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -22,13 +21,13 @@ from .const import (
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
     DOMAIN,
+    Plan44ConfigEntry,
+    Plan44RuntimeData,
     SERVICE_CREATE_VIRTUAL_DEVICE,
     SERVICE_PUSH_ENTITY_STATE,
     SERVICE_REMOVE_VIRTUAL_DEVICE,
     SERVICE_REPUBLISH_VIRTUAL_DEVICES,
     SUPPORTED_KINDS,
-    Plan44ConfigEntry,
-    Plan44RuntimeData,
 )
 from .coordinator import Plan44Coordinator
 from .plan44_client import Plan44Client

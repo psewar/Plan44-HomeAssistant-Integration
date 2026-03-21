@@ -11,7 +11,6 @@ from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
-
 from plan44_core.models import (
     BinarySensorState,
     DeviceCommand,
@@ -32,8 +31,8 @@ from .const import (
     KIND_SWITCH,
     ORIGIN_HA,
     ORIGIN_P44,
-    REVERSE_COOLDOWN_SECONDS,
     Plan44ConfigEntry,
+    REVERSE_COOLDOWN_SECONDS,
 )
 from .plan44_client import Plan44Client
 from .store import Plan44Store

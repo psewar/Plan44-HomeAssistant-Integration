@@ -241,3 +241,30 @@ Recommended VS Code settings:
 A `pyrightconfig.json` file is included for local static analysis.
 
 Note: Home Assistant test tooling does not run properly on native Windows Python because Home Assistant imports Unix-specific modules such as `fcntl`. Run integration tests in WSL2, Docker, or Linux.
+
+
+## Test environments
+
+This repository supports two distinct test modes.
+
+### 1. Core and live P44 tests (clean, no Home Assistant plugin stack)
+
+Use this for protocol work and tests against a real plan44 bridge:
+
+```bash
+pip install -r requirements_test.txt
+python devtools/run_live_tests.py
+```
+
+This path intentionally disables pytest plugin autoload and explicitly enables only `pytest_asyncio`. That avoids unrelated Home Assistant pytest plugins and also avoids transitive `pkg_resources` compatibility issues from the HA test stack. Pytest documents `--disable-plugin-autoload` and explicit `-p ...` plugin loading as the supported way to control plugin loading.
+
+### 2. Home Assistant adapter tests
+
+Use this only when you want to run the HA integration tests under `tests/components`:
+
+```bash
+pip install -r requirements_ha_test.txt
+pytest -c pytest.ha.ini tests/components -vv
+```
+
+Some versions of the Home Assistant test stack still import `pkg_resources`. Setuptools officially deprecated `pkg_resources` long ago and removed it from current distributions as of `setuptools` 82.0.0, so any remaining use is upstream compatibility debt rather than a repository-local requirement.

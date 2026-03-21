@@ -1,9 +1,9 @@
-from plan44_core.models import LightState, SensorState, VirtualDeviceSpec
+from plan44_core.models import LightState, SensorState, SwitchState, VirtualDeviceSpec
 from plan44_core.protocol import (
     build_init_message,
     light_state_to_p44_value,
-    p44_value_to_brightness,
     parse_incoming_message,
+    p44_value_to_brightness,
     state_to_messages,
 )
 

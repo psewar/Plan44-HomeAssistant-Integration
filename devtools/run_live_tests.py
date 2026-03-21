@@ -6,6 +6,8 @@ from pathlib import Path
 
 
 def main() -> int:
+    env = os.environ.copy()
+
     env_file = Path("devtools/.env.live")
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -13,10 +15,27 @@ def main() -> int:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, value = line.split("=", 1)
-            os.environ.setdefault(key, value)
+            env.setdefault(key, value)
 
-    command = ["pytest", "-m", "live_p44", "tests/live", "-vv"]
-    return subprocess.call(command, env=os.environ.copy())
+    repo_root = str(Path(__file__).resolve().parents[1])
+    current_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        repo_root
+        if not current_pythonpath
+        else f"{repo_root}{os.pathsep}{current_pythonpath}"
+    )
+
+    command = [
+        "pytest",
+        "-c",
+        "pytest.live.ini",
+        "tests/live",
+        "-m",
+        "live_p44",
+        "-vv",
+        "-s",
+    ]
+    return subprocess.call(command, env=env)
 
 
 if __name__ == "__main__":

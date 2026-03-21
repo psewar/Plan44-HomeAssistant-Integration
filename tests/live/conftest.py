@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from plan44_core.harness import P44TestHarness, TraceRecorder
 from plan44_core.session import P44Session
@@ -31,7 +37,7 @@ def live_trace_path(tmp_path: Path) -> Path:
     return tmp_path / "p44_live_trace.jsonl"
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def live_harness(live_p44_enabled: bool, live_trace_path: Path):
     if not live_p44_enabled:
         pytest.skip("live P44 tests disabled; set P44_TEST_ENABLED=1")
@@ -49,5 +55,7 @@ async def live_harness(live_p44_enabled: bool, live_trace_path: Path):
     )
     harness = P44TestHarness(session)
     await harness.connect()
-    yield harness
-    await session.disconnect()
+    try:
+        yield harness
+    finally:
+        await session.disconnect()

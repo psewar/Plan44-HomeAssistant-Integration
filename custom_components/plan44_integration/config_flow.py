@@ -5,7 +5,6 @@ from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     CONF_AUTO_REPUBLISH,
@@ -98,7 +97,7 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self,
         user_input: ConfigDict | None = None,
-    ) -> FlowResult:
+    ) -> Any:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -160,7 +159,7 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self,
         user_input: ConfigDict | None = None,
-    ) -> FlowResult:
+    ) -> Any:
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
 
@@ -222,7 +221,7 @@ class Plan44OptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(
         self,
         user_input: ConfigDict | None = None,
-    ) -> FlowResult:
+    ) -> Any:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
