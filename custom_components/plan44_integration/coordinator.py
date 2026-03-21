@@ -94,9 +94,7 @@ class Plan44Coordinator:
     async def async_handle_disconnect(self) -> None:
         if self._reconnect_task and not self._reconnect_task.done():
             return
-        self._reconnect_task = self.hass.async_create_task(
-            self._async_reconnect_loop()
-        )
+        self._reconnect_task = self.hass.async_create_task(self._async_reconnect_loop())
 
     async def _async_reconnect_loop(self) -> None:
         while True:
@@ -359,15 +357,9 @@ class Plan44Coordinator:
     @staticmethod
     def _parse_csv(value: str | list[str]) -> set[str]:
         if isinstance(value, list):
-            return {
-                item.strip().lower()
-                for item in value
-                if item and item.strip()
-            }
+            return {item.strip().lower() for item in value if item and item.strip()}
         return {
-            item.strip().lower()
-            for item in value.split(",")
-            if item and item.strip()
+            item.strip().lower() for item in value.split(",") if item and item.strip()
         }
 
     @staticmethod
@@ -379,9 +371,7 @@ class Plan44Coordinator:
         if brightness is None:
             return 100
 
-        scaled = round(
-            (int(brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE
-        )
+        scaled = round((int(brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE)
         return max(LIGHT_ON_THRESHOLD, min(P44_MAX_CHANNEL_VALUE, scaled))
 
     @staticmethod
