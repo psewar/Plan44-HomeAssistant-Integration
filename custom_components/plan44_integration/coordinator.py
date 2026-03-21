@@ -10,6 +10,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
+from plan44_core.models import BinarySensorState, LightState, SensorState, SwitchState
+from plan44_core.protocol import (
+    parse_incoming_message,
+    p44_value_to_brightness,
+    state_to_messages,
+)
 
 from .const import (
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
@@ -20,11 +26,8 @@ from .const import (
     KIND_LIGHT,
     KIND_SENSOR,
     KIND_SWITCH,
-    LIGHT_MAX_BRIGHTNESS,
-    LIGHT_ON_THRESHOLD,
     ORIGIN_HA,
     ORIGIN_P44,
-    P44_MAX_CHANNEL_VALUE,
     REVERSE_COOLDOWN_SECONDS,
 )
 from .plan44_client import Plan44Client
@@ -148,14 +151,10 @@ class Plan44Coordinator:
         uid = f"ha::{entity_id}"
         display_name = name or state.name or entity_id
         source_domain = await self._async_get_entity_platform(entity_id)
+        unit = state.attributes.get("unit_of_measurement")
 
         await self.client.async_ensure_connected()
-        await self._async_register_with_plan44(
-            uid,
-            display_name,
-            kind,
-            state.attributes,
-        )
+        await self.client.async_register_device(uid, display_name, kind, unit)
         await self.store.async_add_export(
             entity_id=entity_id,
             uid=uid,
@@ -180,11 +179,12 @@ class Plan44Coordinator:
             if state is None:
                 continue
 
-            await self._async_register_with_plan44(
+            unit = state.attributes.get("unit_of_measurement")
+            await self.client.async_register_device(
                 cfg["uid"],
                 cfg["name"],
                 cfg["kind"],
-                state.attributes,
+                unit,
             )
             await self.async_forward_entity_state(entity_id, force=True)
 
@@ -214,35 +214,19 @@ class Plan44Coordinator:
 
         await self.client.async_ensure_connected()
 
-        kind = cfg["kind"]
-        uid = cfg["uid"]
-
-        if kind == KIND_SWITCH:
-            value = 100 if state.state.lower() == "on" else 0
-            await self.client.async_push_channel_value(uid, value)
-        elif kind == KIND_LIGHT:
-            value = self._light_state_to_p44_value(state)
-            await self.client.async_push_channel_value(uid, value)
-        elif kind == KIND_BINARY_SENSOR:
-            value = 100 if state.state.lower() == "on" else 0
-            await self.client.async_push_channel_value(uid, value)
-        elif kind == KIND_SENSOR:
-            try:
-                sensor_value = float(state.state)
-            except (TypeError, ValueError):
-                return
-            await self.client.async_push_sensor_value(uid, sensor_value)
-        else:
-            raise HomeAssistantError(f"Unsupported export kind: {kind}")
+        core_state = self._state_to_core(cfg["kind"], state.state, state.attributes)
+        for message in state_to_messages(cfg["uid"], core_state):
+            if message["message"] == "channel":
+                await self.client.async_push_channel_value(cfg["uid"], message["value"])
+            elif message["message"] == "sensor":
+                await self.client.async_push_sensor_value(cfg["uid"], message["value"])
 
         self._last_origin_by_entity[entity_id] = ORIGIN_HA
         self._last_write_ts_by_entity[entity_id] = now
 
     async def async_handle_plan44_message(self, msg: dict) -> None:
-        message_type = msg.get("message")
         tag = msg.get("tag")
-
-        if message_type != "channel" or not tag:
+        if not tag:
             return
 
         entity_id, cfg = self.store.get_export_by_uid(tag)
@@ -252,20 +236,13 @@ class Plan44Coordinator:
         if not self.reverse_enabled or not cfg.get("allow_reverse", True):
             return
 
-        kind = cfg["kind"]
-        value = msg.get("value", 0)
-
-        if kind not in (KIND_SWITCH, KIND_LIGHT):
+        command = parse_incoming_message(msg, cfg["kind"])
+        if command is None:
             return
 
-        await self.async_apply_reverse_command(entity_id, kind, value)
+        await self.async_apply_reverse_command(entity_id, cfg["kind"], command)
 
-    async def async_apply_reverse_command(
-        self,
-        entity_id: str,
-        kind: str,
-        value: int | float,
-    ) -> None:
+    async def async_apply_reverse_command(self, entity_id: str, kind: str, command) -> None:
         now = time.monotonic()
         last_origin = self._last_origin_by_entity.get(entity_id)
         last_ts = self._last_write_ts_by_entity.get(entity_id, 0.0)
@@ -277,42 +254,20 @@ class Plan44Coordinator:
 
         if kind == KIND_SWITCH:
             domain = "switch"
-            service = "turn_on" if float(value) > 0 else "turn_off"
+            service = command.action
         else:
             domain = "light"
-            if float(value) > 0:
-                service = "turn_on"
-                service_data[ATTR_BRIGHTNESS] = self._p44_value_to_brightness(value)
-            else:
+            if command.action == "turn_off":
                 service = "turn_off"
+            else:
+                service = "turn_on"
+                if command.value is not None:
+                    service_data[ATTR_BRIGHTNESS] = int(command.value)
 
-        await self.hass.services.async_call(
-            domain,
-            service,
-            service_data,
-            blocking=True,
-        )
+        await self.hass.services.async_call(domain, service, service_data, blocking=True)
 
         self._last_origin_by_entity[entity_id] = ORIGIN_P44
         self._last_write_ts_by_entity[entity_id] = now
-
-    async def _async_register_with_plan44(
-        self,
-        uid: str,
-        name: str,
-        kind: str,
-        attributes: dict,
-    ) -> None:
-        if kind in (KIND_SWITCH, KIND_LIGHT, KIND_BINARY_SENSOR):
-            await self.client.async_register_switch_like(uid, name)
-            return
-
-        if kind == KIND_SENSOR:
-            unit = attributes.get("unit_of_measurement")
-            await self.client.async_register_sensor(uid, name, unit)
-            return
-
-        raise HomeAssistantError(f"Unsupported kind: {kind}")
 
     async def _async_validate_export(self, entity_id: str, kind: str) -> None:
         state = self.hass.states.get(entity_id)
@@ -322,8 +277,7 @@ class Plan44Coordinator:
         entity_domain = entity_id.split(".", 1)[0]
         if entity_domain != kind:
             raise HomeAssistantError(
-                "Entity domain "
-                f"'{entity_domain}' does not match requested kind '{kind}'"
+                f"Entity domain '{entity_domain}' does not match requested kind '{kind}'"
             )
 
         for prefix in self._blocked_entity_prefixes:
@@ -359,24 +313,22 @@ class Plan44Coordinator:
         if isinstance(value, list):
             return {item.strip().lower() for item in value if item and item.strip()}
         return {
-            item.strip().lower() for item in value.split(",") if item and item.strip()
+            item.strip().lower()
+            for item in value.split(",")
+            if item and item.strip()
         }
 
     @staticmethod
-    def _light_state_to_p44_value(state) -> int:
-        if state.state.lower() != "on":
-            return 0
-
-        brightness = state.attributes.get(ATTR_BRIGHTNESS)
-        if brightness is None:
-            return 100
-
-        scaled = round((int(brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE)
-        return max(LIGHT_ON_THRESHOLD, min(P44_MAX_CHANNEL_VALUE, scaled))
-
-    @staticmethod
-    def _p44_value_to_brightness(value: int | float) -> int:
-        value = max(0, min(P44_MAX_CHANNEL_VALUE, int(float(value))))
-        if value == 0:
-            return 0
-        return max(1, round((value / P44_MAX_CHANNEL_VALUE) * LIGHT_MAX_BRIGHTNESS))
+    def _state_to_core(kind: str, state_value: str, attributes: dict):
+        if kind == KIND_SWITCH:
+            return SwitchState(is_on=state_value.lower() == "on")
+        if kind == KIND_LIGHT:
+            return LightState(
+                is_on=state_value.lower() == "on",
+                brightness=attributes.get(ATTR_BRIGHTNESS),
+            )
+        if kind == KIND_BINARY_SENSOR:
+            return BinarySensorState(is_on=state_value.lower() == "on")
+        if kind == KIND_SENSOR:
+            return SensorState(numeric_value=float(state_value))
+        raise HomeAssistantError(f"Unsupported export kind: {kind}")

@@ -28,3 +28,6 @@ htmlcov/
 # Home Assistant local dev
 config/
 .storage/
+
+devtools/.env.live
+artifacts/*.jsonl

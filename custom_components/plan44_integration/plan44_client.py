@@ -6,6 +6,13 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from plan44_core.protocol import (
+    build_channel_message,
+    build_init_message,
+    build_initvdc_message,
+    build_sensor_message,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 IncomingCallback = Callable[[dict[str, Any]], Awaitable[None]]
@@ -40,13 +47,10 @@ class Plan44Client:
         if self.is_connected:
             return
 
-        self._reader, self._writer = await asyncio.open_connection(
-            self.host,
-            self.port,
-        )
+        self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
         _LOGGER.info("Connected to plan44 at %s:%s", self.host, self.port)
 
-        await self.async_send({"message": "initvdc", "model": self.vdc_model_name})
+        await self.async_send(build_initvdc_message(self.vdc_model_name))
         self._reader_task = asyncio.create_task(self._async_reader_loop())
 
     async def async_ensure_connected(self) -> None:
@@ -76,56 +80,38 @@ class Plan44Client:
             await self._writer.drain()
             _LOGGER.debug("plan44 tx: %s", line.strip())
 
-    async def async_register_switch_like(self, uid: str, name: str) -> None:
-        await self.async_send(
-            {
-                "message": "init",
-                "tag": uid,
-                "name": name,
-                "model": "Home Assistant Virtual Device",
-                "iconname": "vdc_ext",
-                "output": "switch",
-                "sync": True,
-            }
-        )
-
-    async def async_register_sensor(
+    async def async_register_device(
         self,
         uid: str,
         name: str,
+        kind: str,
         unit: str | None = None,
     ) -> None:
-        await self.async_send(
-            {
-                "message": "init",
-                "tag": uid,
-                "name": name,
-                "model": "Home Assistant Virtual Sensor",
+        spec = {
+            "device_id": uid,
+            "name": name,
+            "kind": kind,
+            "unit": unit,
+        }
+        # keep dependency minimal and payload explicit
+        message = build_init_message(
+            type("Spec", (), {  # noqa: PLC2801
+                "tag": spec["device_id"],
+                "name": spec["name"],
+                "kind": spec["kind"],
+                "unit": spec["unit"],
+                "model": None,
                 "iconname": "vdc_ext",
-                "sensor": unit or "generic",
                 "sync": True,
-            }
+            })()
         )
+        await self.async_send(message)
 
     async def async_push_channel_value(self, uid: str, value: int) -> None:
-        await self.async_send(
-            {
-                "message": "channel",
-                "tag": uid,
-                "index": 0,
-                "value": max(0, min(100, int(value))),
-            }
-        )
+        await self.async_send(build_channel_message(uid, value))
 
     async def async_push_sensor_value(self, uid: str, value: float) -> None:
-        await self.async_send(
-            {
-                "message": "sensor",
-                "tag": uid,
-                "index": 0,
-                "value": value,
-            }
-        )
+        await self.async_send(build_sensor_message(uid, value))
 
     async def _async_reader_loop(self) -> None:
         assert self._reader is not None

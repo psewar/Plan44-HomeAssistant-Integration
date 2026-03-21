@@ -180,3 +180,51 @@ Recommended local test setup on Windows:
 
 The integration itself can still be edited on Windows; this limitation affects
 mainly the Home Assistant test environment.
+
+
+## plan44_core and live testing without Home Assistant
+
+The repository also contains a HA-independent `plan44_core` package. It is intended for:
+
+- protocol and mapping tests without Home Assistant
+- live tests against a real plan44 bridge
+- recording raw RX/TX traffic for device-type debugging
+
+### Why this split exists
+
+The Home Assistant integration should remain a thin adapter layer. The protocol and device-type behavior is easier to develop and regression-test in isolation.
+
+### Core package structure
+
+- `plan44_core.models`: generic device specs and states
+- `plan44_core.protocol`: message building and reverse parsing
+- `plan44_core.session`: TCP session to a real plan44 bridge
+- `plan44_core.harness`: convenience wrapper for live tests and traces
+
+### Live test configuration
+
+Copy `devtools/.env.live.example` to `devtools/.env.live` and adjust the values.
+That file is intentionally not committed.
+
+Example:
+
+```bash
+cp devtools/.env.live.example devtools/.env.live
+python devtools/run_live_tests.py
+```
+
+All traffic is written as JSONL to the configured trace path. This makes it easy to inspect exactly what was sent to and received from the real bridge.
+
+### Running only the core unit tests
+
+```bash
+pytest tests/unit -vv
+```
+
+### Running live plan44 tests
+
+```bash
+python devtools/run_live_tests.py
+```
+
+These tests are skipped unless `P44_TEST_ENABLED=1` is set.

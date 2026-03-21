@@ -21,6 +21,9 @@ asyncio_mode = "auto"
 testpaths = [
   "tests",
 ]
+markers = [
+  "live_p44: tests against a real plan44 bridge",
+]
 
 [tool.mypy]
 python_version = "3.12"
