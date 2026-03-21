@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import Any
 
 from .models import DeviceCommand, DeviceState, VirtualDeviceSpec
@@ -17,8 +17,9 @@ from .protocol import (
 
 _LOGGER = logging.getLogger(__name__)
 
-TraceHook = Callable[[str, dict[str, Any]], Awaitable[None]]
-IncomingHook = Callable[[dict[str, Any]], Awaitable[None]]
+JsonDict = dict[str, Any]
+TraceHook = Callable[[str, JsonDict], Awaitable[None]]
+IncomingHook = Callable[[JsonDict], Awaitable[None]]
 
 
 class P44Session:
@@ -38,7 +39,7 @@ class P44Session:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._read_task: asyncio.Task[None] | None = None
-        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._queue: asyncio.Queue[JsonDict] = asyncio.Queue()
         self._specs_by_id: dict[str, VirtualDeviceSpec] = {}
         self._write_lock = asyncio.Lock()
 
@@ -49,7 +50,10 @@ class P44Session:
     async def connect(self) -> None:
         if self.is_connected:
             return
-        self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+        self._reader, self._writer = await asyncio.open_connection(
+            self.host,
+            self.port,
+        )
         await self.send_message(build_initvdc_message(self.model_name))
         self._read_task = asyncio.create_task(self._read_loop())
 
@@ -75,24 +79,26 @@ class P44Session:
         for message in state_to_messages(device_id, state):
             await self.send_message(message)
 
-    async def send_message(self, message: dict[str, Any]) -> None:
+    async def send_message(self, message: JsonDict) -> None:
         async with self._write_lock:
             if not self.is_connected:
                 raise RuntimeError("P44 session is not connected")
-            assert self._writer is not None
+            writer = self._writer
+            if writer is None:
+                raise RuntimeError("P44 session writer is unavailable")
             line = json.dumps(message, separators=(",", ":")) + "\n"
-            self._writer.write(line.encode("utf-8"))
-            await self._writer.drain()
+            writer.write(line.encode("utf-8"))
+            await writer.drain()
             await self._emit_trace("tx", message)
 
-    async def wait_for_message(self, timeout: float = 5.0) -> dict[str, Any]:
+    async def wait_for_message(self, timeout: float = 5.0) -> JsonDict:
         return await asyncio.wait_for(self._queue.get(), timeout=timeout)
 
     async def wait_for_command(self, timeout: float = 5.0) -> DeviceCommand | None:
         while True:
             message = await self.wait_for_message(timeout=timeout)
             tag = message.get("tag")
-            if not tag:
+            if tag is None:
                 continue
             spec = self._specs_by_id.get(str(tag))
             if spec is None:
@@ -102,20 +108,26 @@ class P44Session:
                 return command
 
     async def _read_loop(self) -> None:
-        assert self._reader is not None
+        reader = self._reader
+        if reader is None:
+            raise RuntimeError("P44 session reader is unavailable")
         try:
             while True:
-                raw = await self._reader.readline()
+                raw = await reader.readline()
                 if not raw:
                     break
                 line = raw.decode("utf-8", errors="ignore").strip()
                 if not line:
                     continue
                 try:
-                    message = json.loads(line)
+                    loaded = json.loads(line)
                 except json.JSONDecodeError:
                     _LOGGER.warning("Ignoring invalid JSON from P44: %s", line)
                     continue
+                if not isinstance(loaded, dict):
+                    _LOGGER.warning("Ignoring non-object JSON from P44: %s", line)
+                    continue
+                message: JsonDict = dict(loaded)
                 await self._emit_trace("rx", message)
                 await self._queue.put(message)
                 if self._incoming_hook is not None:
@@ -126,9 +138,6 @@ class P44Session:
             self._reader = None
             self._writer = None
 
-    async def _emit_trace(self, direction: str, message: dict[str, Any]) -> None:
+    async def _emit_trace(self, direction: str, message: JsonDict) -> None:
         if self._trace_hook is not None:
             await self._trace_hook(direction, message)
-
-
-import contextlib  # noqa: E402

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 DeviceKind = Literal["switch", "light", "sensor", "binary_sensor"]
 
@@ -26,7 +26,7 @@ class VirtualDeviceSpec:
 
 @dataclass(slots=True)
 class DeviceState:
-    pass
+    """Base class for virtual device state."""
 
 
 @dataclass(slots=True)
@@ -56,4 +56,4 @@ class DeviceCommand:
     kind: DeviceKind
     action: Literal["turn_on", "turn_off", "set_brightness"]
     value: int | float | None = None
-    raw: dict | None = None
+    raw: dict[str, Any] | None = None

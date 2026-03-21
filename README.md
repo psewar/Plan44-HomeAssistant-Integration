@@ -228,3 +228,16 @@ python devtools/run_live_tests.py
 ```
 
 These tests are skipped unless `P44_TEST_ENABLED=1` is set.
+
+
+## Pylance / Pyright
+
+This repository is structured to be friendlier to strict static analysis.
+
+Recommended VS Code settings:
+- Python interpreter: Python 3.12 or 3.13
+- Pylance type checking mode: `strict`
+
+A `pyrightconfig.json` file is included for local static analysis.
+
+Note: Home Assistant test tooling does not run properly on native Windows Python because Home Assistant imports Unix-specific modules such as `fcntl`. Run integration tests in WSL2, Docker, or Linux.

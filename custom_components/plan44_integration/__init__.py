@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryNotReady
@@ -21,13 +22,13 @@ from .const import (
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
     DOMAIN,
-    Plan44ConfigEntry,
-    Plan44RuntimeData,
     SERVICE_CREATE_VIRTUAL_DEVICE,
     SERVICE_PUSH_ENTITY_STATE,
     SERVICE_REMOVE_VIRTUAL_DEVICE,
     SERVICE_REPUBLISH_VIRTUAL_DEVICES,
     SUPPORTED_KINDS,
+    Plan44ConfigEntry,
+    Plan44RuntimeData,
 )
 from .coordinator import Plan44Coordinator
 from .plan44_client import Plan44Client
@@ -61,16 +62,16 @@ PUSH_STATE_SCHEMA = vol.Schema(
 REPUBLISH_SCHEMA = vol.Schema({vol.Optional(ATTR_ENTRY_ID): str})
 
 
-def _resolve_entry(hass: HomeAssistant, call: ServiceCall):
+def _resolve_entry(hass: HomeAssistant, call: ServiceCall) -> Plan44ConfigEntry:
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         raise HomeAssistantError("No configured plan44 entry found")
 
-    requested_entry_id = call.data.get(ATTR_ENTRY_ID)
+    requested_entry_id = cast(str | None, call.data.get(ATTR_ENTRY_ID))
     if requested_entry_id is not None:
         for entry in entries:
             if entry.entry_id == requested_entry_id:
-                return entry
+                return cast(Plan44ConfigEntry, entry)
         raise HomeAssistantError(
             f"Unknown plan44 entry_id: {requested_entry_id}"
         )
@@ -81,24 +82,31 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall):
             "specify entry_id in the service call"
         )
 
-    return entries[0]
+    return cast(Plan44ConfigEntry, entries[0])
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def _svc_create_virtual_device(call: ServiceCall) -> None:
         entry = _resolve_entry(hass, call)
+        entity_id = cast(str, call.data[ATTR_ENTITY_ID])
+        kind = cast(str, call.data[ATTR_KIND])
+        name = cast(str | None, call.data.get(ATTR_NAME))
+        room_hint = cast(str | None, call.data.get(ATTR_ROOM_HINT))
+        allow_reverse = cast(bool, call.data[ATTR_ALLOW_REVERSE])
+
         await entry.runtime_data.coordinator.async_create_virtual_device(
-            entity_id=call.data[ATTR_ENTITY_ID],
-            kind=call.data[ATTR_KIND],
-            name=call.data.get(ATTR_NAME),
-            room_hint=call.data.get(ATTR_ROOM_HINT),
-            allow_reverse=call.data[ATTR_ALLOW_REVERSE],
+            entity_id=entity_id,
+            kind=kind,
+            name=name,
+            room_hint=room_hint,
+            allow_reverse=allow_reverse,
         )
 
     async def _svc_remove_virtual_device(call: ServiceCall) -> None:
         entry = _resolve_entry(hass, call)
+        entity_id = cast(str, call.data[ATTR_ENTITY_ID])
         await entry.runtime_data.coordinator.async_remove_virtual_device(
-            entity_id=call.data[ATTR_ENTITY_ID],
+            entity_id=entity_id,
         )
 
     async def _svc_republish_virtual_devices(call: ServiceCall) -> None:
@@ -107,8 +115,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def _svc_push_entity_state(call: ServiceCall) -> None:
         entry = _resolve_entry(hass, call)
+        entity_id = cast(str, call.data[ATTR_ENTITY_ID])
         await entry.runtime_data.coordinator.async_forward_entity_state(
-            entity_id=call.data[ATTR_ENTITY_ID],
+            entity_id=entity_id,
             force=True,
         )
 
@@ -147,7 +156,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
 
     coordinator: Plan44Coordinator | None = None
 
-    async def _incoming_callback(msg: dict) -> None:
+    async def _incoming_callback(msg: dict[str, Any]) -> None:
         if coordinator is not None:
             await coordinator.async_handle_plan44_message(msg)
 
@@ -156,9 +165,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
             await coordinator.async_handle_disconnect()
 
     client = Plan44Client(
-        host=entry.data[CONF_HOST],
-        port=entry.data[CONF_PORT],
-        vdc_model_name=entry.data[CONF_VDC_MODEL_NAME],
+        host=cast(str, entry.data[CONF_HOST]),
+        port=cast(int, entry.data[CONF_PORT]),
+        vdc_model_name=cast(str, entry.data[CONF_VDC_MODEL_NAME]),
         incoming_callback=_incoming_callback,
         disconnect_callback=_disconnect_callback,
     )
@@ -168,13 +177,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         entry=entry,
         client=client,
         store=store,
-        reverse_enabled=entry.options.get(
-            CONF_REVERSE_ENABLED,
-            entry.data[CONF_REVERSE_ENABLED],
+        reverse_enabled=cast(
+            bool,
+            entry.options.get(
+                CONF_REVERSE_ENABLED,
+                entry.data[CONF_REVERSE_ENABLED],
+            ),
         ),
-        auto_republish=entry.options.get(
-            CONF_AUTO_REPUBLISH,
-            entry.data[CONF_AUTO_REPUBLISH],
+        auto_republish=cast(
+            bool,
+            entry.options.get(
+                CONF_AUTO_REPUBLISH,
+                entry.data[CONF_AUTO_REPUBLISH],
+            ),
         ),
     )
 

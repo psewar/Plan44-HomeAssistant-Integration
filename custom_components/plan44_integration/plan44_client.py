@@ -4,18 +4,22 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
+from plan44_core.models import DeviceCommand, DeviceKind, DeviceState, VirtualDeviceSpec
 from plan44_core.protocol import (
     build_channel_message,
     build_init_message,
     build_initvdc_message,
     build_sensor_message,
+    parse_incoming_message,
+    state_to_messages,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-IncomingCallback = Callable[[dict[str, Any]], Awaitable[None]]
+JsonDict = dict[str, Any]
+IncomingCallback = Callable[[JsonDict], Awaitable[None]]
 DisconnectCallback = Callable[[], Awaitable[None]]
 
 
@@ -37,7 +41,7 @@ class Plan44Client:
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._write_lock = asyncio.Lock()
-        self._reader_task: asyncio.Task | None = None
+        self._reader_task: asyncio.Task[None] | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -47,7 +51,10 @@ class Plan44Client:
         if self.is_connected:
             return
 
-        self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+        self._reader, self._writer = await asyncio.open_connection(
+            self.host,
+            self.port,
+        )
         _LOGGER.info("Connected to plan44 at %s:%s", self.host, self.port)
 
         await self.async_send(build_initvdc_message(self.vdc_model_name))
@@ -58,26 +65,30 @@ class Plan44Client:
             await self.async_connect()
 
     async def async_disconnect(self) -> None:
-        if self._reader_task:
-            self._reader_task.cancel()
+        reader_task = self._reader_task
+        if reader_task is not None:
+            reader_task.cancel()
             self._reader_task = None
 
-        if self._writer:
-            self._writer.close()
-            await self._writer.wait_closed()
+        writer = self._writer
+        if writer is not None:
+            writer.close()
+            await writer.wait_closed()
 
         self._reader = None
         self._writer = None
 
-    async def async_send(self, payload: dict[str, Any]) -> None:
+    async def async_send(self, payload: JsonDict) -> None:
         async with self._write_lock:
             if not self.is_connected:
                 raise RuntimeError("plan44 client is not connected")
 
-            assert self._writer is not None
+            writer = self._writer
+            if writer is None:
+                raise RuntimeError("plan44 client writer is unavailable")
             line = json.dumps(payload, separators=(",", ":")) + "\n"
-            self._writer.write(line.encode("utf-8"))
-            await self._writer.drain()
+            writer.write(line.encode("utf-8"))
+            await writer.drain()
             _LOGGER.debug("plan44 tx: %s", line.strip())
 
     async def async_register_device(
@@ -87,25 +98,13 @@ class Plan44Client:
         kind: str,
         unit: str | None = None,
     ) -> None:
-        spec = {
-            "device_id": uid,
-            "name": name,
-            "kind": kind,
-            "unit": unit,
-        }
-        # keep dependency minimal and payload explicit
-        message = build_init_message(
-            type("Spec", (), {  # noqa: PLC2801
-                "tag": spec["device_id"],
-                "name": spec["name"],
-                "kind": spec["kind"],
-                "unit": spec["unit"],
-                "model": None,
-                "iconname": "vdc_ext",
-                "sync": True,
-            })()
+        spec = VirtualDeviceSpec(
+            device_id=uid,
+            name=name,
+            kind=cast(DeviceKind, kind),
+            unit=unit,
         )
-        await self.async_send(message)
+        await self.async_send(build_init_message(spec))
 
     async def async_push_channel_value(self, uid: str, value: int) -> None:
         await self.async_send(build_channel_message(uid, value))
@@ -113,12 +112,29 @@ class Plan44Client:
     async def async_push_sensor_value(self, uid: str, value: float) -> None:
         await self.async_send(build_sensor_message(uid, value))
 
+    async def async_push_state_messages(
+        self,
+        uid: str,
+        state: DeviceState,
+    ) -> None:
+        for message in state_to_messages(uid, state):
+            await self.async_send(message)
+
+    def parse_message_as_command(
+        self,
+        msg: JsonDict,
+        kind: str,
+    ) -> DeviceCommand | None:
+        return parse_incoming_message(msg, cast(DeviceKind, kind))
+
     async def _async_reader_loop(self) -> None:
-        assert self._reader is not None
+        reader = self._reader
+        if reader is None:
+            raise RuntimeError("plan44 client reader is unavailable")
 
         try:
             while True:
-                raw = await self._reader.readline()
+                raw = await reader.readline()
                 if not raw:
                     _LOGGER.warning("plan44 connection closed by remote side")
                     break
@@ -128,11 +144,16 @@ class Plan44Client:
                     continue
 
                 try:
-                    msg = json.loads(line)
+                    loaded = json.loads(line)
                 except json.JSONDecodeError:
                     _LOGGER.warning("Invalid JSON from plan44: %s", line)
                     continue
 
+                if not isinstance(loaded, dict):
+                    _LOGGER.warning("Ignoring non-object JSON from plan44: %s", line)
+                    continue
+
+                msg: JsonDict = dict(loaded)
                 await self._incoming_callback(msg)
         except asyncio.CancelledError:
             raise
@@ -140,10 +161,11 @@ class Plan44Client:
             _LOGGER.exception("Unexpected error in plan44 reader loop")
         finally:
             self._reader = None
-            if self._writer:
+            writer = self._writer
+            if writer is not None:
                 try:
-                    self._writer.close()
-                    await self._writer.wait_closed()
+                    writer.close()
+                    await writer.wait_closed()
                 except Exception:
                     pass
             self._writer = None

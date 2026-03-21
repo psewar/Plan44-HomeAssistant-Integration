@@ -1,0 +1,21 @@
+{
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.12",
+  "include": [
+    "custom_components",
+    "plan44_core",
+    "devtools"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "tests",
+    ".venv"
+  ],
+  "reportMissingTypeStubs": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownParameterType": false,
+  "reportUntypedFunctionDecorator": false
+}

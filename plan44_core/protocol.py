@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from .models import (
     BinarySensorState,
     DeviceCommand,
+    DeviceKind,
+    DeviceState,
     LightState,
     SensorState,
     SwitchState,
@@ -16,11 +18,21 @@ P44_MAX_CHANNEL_VALUE = 100
 LIGHT_ON_THRESHOLD = 1
 
 
+class SupportsInitSpec(Protocol):
+    tag: str
+    name: str
+    kind: DeviceKind
+    unit: str | None
+    model: str | None
+    iconname: str
+    sync: bool
+
+
 def build_initvdc_message(model_name: str) -> dict[str, Any]:
     return {"message": "initvdc", "model": model_name}
 
 
-def build_init_message(spec: VirtualDeviceSpec) -> dict[str, Any]:
+def build_init_message(spec: SupportsInitSpec | VirtualDeviceSpec) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "message": "init",
         "tag": spec.tag,
@@ -40,7 +52,11 @@ def build_init_message(spec: VirtualDeviceSpec) -> dict[str, Any]:
     return payload
 
 
-def build_channel_message(device_id: str, value: int, index: int = 0) -> dict[str, Any]:
+def build_channel_message(
+    device_id: str,
+    value: int,
+    index: int = 0,
+) -> dict[str, Any]:
     return {
         "message": "channel",
         "tag": device_id,
@@ -49,7 +65,11 @@ def build_channel_message(device_id: str, value: int, index: int = 0) -> dict[st
     }
 
 
-def build_sensor_message(device_id: str, value: float, index: int = 0) -> dict[str, Any]:
+def build_sensor_message(
+    device_id: str,
+    value: float,
+    index: int = 0,
+) -> dict[str, Any]:
     return {
         "message": "sensor",
         "tag": device_id,
@@ -58,7 +78,7 @@ def build_sensor_message(device_id: str, value: float, index: int = 0) -> dict[s
     }
 
 
-def state_to_messages(device_id: str, state: object) -> list[dict[str, Any]]:
+def state_to_messages(device_id: str, state: DeviceState) -> list[dict[str, Any]]:
     if isinstance(state, SwitchState):
         return [build_channel_message(device_id, 100 if state.is_on else 0)]
     if isinstance(state, BinarySensorState):
@@ -70,7 +90,10 @@ def state_to_messages(device_id: str, state: object) -> list[dict[str, Any]]:
     raise ValueError(f"Unsupported state type: {type(state)!r}")
 
 
-def parse_incoming_message(message: dict[str, Any], kind: str) -> DeviceCommand | None:
+def parse_incoming_message(
+    message: dict[str, Any],
+    kind: DeviceKind,
+) -> DeviceCommand | None:
     if message.get("message") != "channel" or not message.get("tag"):
         return None
 
@@ -108,7 +131,10 @@ def light_state_to_p44_value(state: LightState) -> int:
         return 0
     if state.brightness is None:
         return P44_MAX_CHANNEL_VALUE
-    scaled = round((int(state.brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE)
+    scaled = round(
+        (int(state.brightness) / LIGHT_MAX_BRIGHTNESS)
+        * P44_MAX_CHANNEL_VALUE
+    )
     return max(LIGHT_ON_THRESHOLD, min(P44_MAX_CHANNEL_VALUE, scaled))
 
 
@@ -119,7 +145,7 @@ def p44_value_to_brightness(value: int | float) -> int:
     return max(1, round((numeric / P44_MAX_CHANNEL_VALUE) * LIGHT_MAX_BRIGHTNESS))
 
 
-def _default_model_for_kind(kind: str) -> str:
+def _default_model_for_kind(kind: DeviceKind) -> str:
     if kind == "sensor":
         return "Home Assistant Virtual Sensor"
     return "Home Assistant Virtual Device"
