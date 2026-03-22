@@ -22,6 +22,11 @@ from .plan44_core.models import (
 )
 
 from .const import (
+    ATTR_ALLOW_REVERSE,
+    ATTR_ENTITY_ID,
+    ATTR_KIND,
+    ATTR_NAME,
+    ATTR_ROOM_HINT,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
     CONF_RECONNECT_INTERVAL,
@@ -36,7 +41,7 @@ from .const import (
     REVERSE_COOLDOWN_SECONDS,
 )
 from .plan44_client import Plan44Client
-from .store import Plan44Store
+from .store import ExportRecord, Plan44Store
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,6 +89,7 @@ class Plan44Coordinator:
         )
 
     async def async_initialize(self) -> None:
+        self._refresh_exports()
         await self.client.async_connect()
         if self.auto_republish:
             await self.async_republish_virtual_devices()
@@ -123,7 +129,7 @@ class Plan44Coordinator:
                 await asyncio.sleep(self._reconnect_interval)
 
     def _install_state_listener(self) -> None:
-        tracked = [entity_id for entity_id, _cfg in self.store.iter_exports()]
+        tracked = list(self._exports_by_entity)
         if not tracked:
             return
 
@@ -150,6 +156,40 @@ class Plan44Coordinator:
             unsub()
         self._tracked_unsubs.clear()
         self._install_state_listener()
+
+    def _refresh_exports(self) -> None:
+        exports: dict[str, ExportRecord] = {}
+        self._refresh_exports()
+        for entity_id, cfg in self._exports_by_entity.items():
+            exports[entity_id] = cfg
+        for entity_id, cfg in self._iter_subentry_exports().items():
+            exports[entity_id] = cfg
+        self._exports_by_entity = exports
+        self._entity_by_uid = {cfg["uid"]: entity_id for entity_id, cfg in exports.items()}
+
+    def _iter_subentry_exports(self) -> dict[str, ExportRecord]:
+        exports: dict[str, ExportRecord] = {}
+        for subentry in getattr(self.entry, "subentries", ()):
+            data = getattr(subentry, "data", None)
+            if not isinstance(data, Mapping):
+                continue
+            entity_id = data.get(ATTR_ENTITY_ID)
+            kind = data.get(ATTR_KIND)
+            if not isinstance(entity_id, str) or not isinstance(kind, str):
+                continue
+            name = data.get(ATTR_NAME)
+            room_hint = data.get(ATTR_ROOM_HINT)
+            allow_reverse = data.get(ATTR_ALLOW_REVERSE, True)
+            exports[entity_id] = {
+                "uid": f"ha::{entity_id}",
+                "kind": kind,
+                "name": name if isinstance(name, str) and name else entity_id,
+                "room_hint": room_hint if isinstance(room_hint, str) else None,
+                "allow_reverse": bool(allow_reverse),
+                "enabled": True,
+                "source_domain": None,
+            }
+        return exports
 
     async def async_create_virtual_device(
         self,
@@ -182,17 +222,20 @@ class Plan44Coordinator:
             allow_reverse=allow_reverse,
             source_domain=source_domain,
         )
+        self._refresh_exports()
         await self.async_reinstall_listener()
         await self.async_forward_entity_state(entity_id, force=True)
 
     async def async_remove_virtual_device(self, entity_id: str) -> None:
         await self.store.async_remove_export(entity_id)
+        self._refresh_exports()
         await self.async_reinstall_listener()
 
     async def async_republish_virtual_devices(self) -> None:
         await self.client.async_ensure_connected()
 
-        for entity_id, cfg in self.store.iter_exports():
+        self._refresh_exports()
+        for entity_id, cfg in self._exports_by_entity.items():
             state = self.hass.states.get(entity_id)
             if state is None:
                 continue
@@ -212,7 +255,7 @@ class Plan44Coordinator:
         entity_id: str,
         force: bool = False,
     ) -> None:
-        cfg = self.store.get_export(entity_id)
+        cfg = self._exports_by_entity.get(entity_id)
         if cfg is None or not cfg["enabled"]:
             return
 
@@ -245,8 +288,11 @@ class Plan44Coordinator:
             return
 
         tag = str(tag_raw)
-        entity_id, cfg = self.store.get_export_by_uid(tag)
-        if entity_id is None or cfg is None:
+        entity_id = self._entity_by_uid.get(tag)
+        if entity_id is None:
+            return
+        cfg = self._exports_by_entity.get(entity_id)
+        if cfg is None:
             return
 
         if not self.reverse_enabled or not cfg["allow_reverse"]:

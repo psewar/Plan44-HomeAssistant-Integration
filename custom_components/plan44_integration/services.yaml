@@ -1,6 +1,6 @@
 create_virtual_device:
   name: Create virtual device
-  description: Export a Home Assistant entity as a virtual bidirectional plan44 device.
+  description: Legacy compatibility action. Prefer adding virtual devices from the plan44 integration UI.
   fields:
     entry_id:
       required: false
@@ -35,7 +35,7 @@ create_virtual_device:
 
 remove_virtual_device:
   name: Remove virtual device
-  description: Remove a mapped plan44 virtual device.
+  description: Legacy compatibility action. Prefer removing virtual devices from the plan44 integration UI.
   fields:
     entry_id:
       required: false

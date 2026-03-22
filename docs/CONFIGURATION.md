@@ -74,3 +74,15 @@ Recommended approaches:
 A dedicated file keeps the setup understandable and makes it easier to see which Home Assistant entities are intended for export to plan44.
 
 For concrete examples, see [Creating and managing virtual devices](VIRTUAL_DEVICES.md).
+
+
+## UI-managed virtual devices
+
+The main integration entry should only hold shared connection settings. Virtual devices should be added as child configuration items from the integration UI.
+
+This means the UI model is:
+
+- one parent `plan44` entry for the P44 connection
+- one child entry per virtual device
+
+This structure makes adding, editing, and removing exported entities much easier than using only service calls.

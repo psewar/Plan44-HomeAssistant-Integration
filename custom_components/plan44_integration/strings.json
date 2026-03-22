@@ -25,7 +25,11 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to plan44"
+      "cannot_connect": "Failed to connect to plan44",
+      "entity_not_found": "The selected entity was not found.",
+      "kind_mismatch": "The selected entity domain does not match the chosen virtual device type.",
+      "sensor_not_numeric": "The selected sensor does not currently have a numeric state.",
+      "already_configured": "A virtual device for this entity already exists."
     },
     "abort": {
       "reconfigure_successful": "Configuration updated successfully"
@@ -41,6 +45,34 @@
           "reconnect_interval": "Reconnect interval in seconds",
           "blocklist_integrations": "Blocked integrations (comma-separated)",
           "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "virtual_device": {
+      "flow_title": "Virtual device",
+      "step": {
+        "user": {
+          "title": "Add virtual device",
+          "description": "Create a virtual device managed directly from the UI.",
+          "data": {
+            "entity_id": "Source entity",
+            "kind": "Virtual device type",
+            "name": "Display name",
+            "room_hint": "Room hint",
+            "allow_reverse": "Allow reverse control from plan44 to Home Assistant"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit virtual device",
+          "data": {
+            "entity_id": "Source entity",
+            "kind": "Virtual device type",
+            "name": "Display name",
+            "room_hint": "Room hint",
+            "allow_reverse": "Allow reverse control from plan44 to Home Assistant"
+          }
         }
       }
     }

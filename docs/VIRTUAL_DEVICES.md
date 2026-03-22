@@ -214,3 +214,26 @@ Reverse control from plan44 back to Home Assistant currently matters mainly for:
 - `light`
 
 For `sensor` and `binary_sensor`, the main use case is sending Home Assistant state **to** plan44.
+
+
+## Recommended management model
+
+As of the current UI design, virtual devices should primarily be managed directly from the Home Assistant integration UI using **config subentries**:
+
+1. Add the main `plan44` integration once for the shared connection settings.
+2. Open the `plan44` integration entry.
+3. Use **Add virtual device** to create one child configuration item per exported entity.
+4. Edit or remove those child items directly from the UI later.
+
+The existing service actions remain available as a compatibility layer, but the preferred long-term workflow is the UI-driven subentry model.
+
+## Suggested Home Assistant package file
+
+For helper-based virtual devices, it is still a good idea to keep the helper entities themselves in a dedicated Home Assistant package file, for example:
+
+```text
+packages/plan44_virtual_devices.yaml
+```
+
+This file contains the source entities (for example `input_boolean`, template `switch`, template `sensor`, template `binary_sensor`).
+The `plan44` integration UI then only needs to reference those already existing entities.

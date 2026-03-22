@@ -31,6 +31,9 @@ DEFAULT_BLOCKLIST_INTEGRATIONS = (
 )
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 
+SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"
+
+
 SERVICE_CREATE_VIRTUAL_DEVICE = "create_virtual_device"
 SERVICE_REMOVE_VIRTUAL_DEVICE = "remove_virtual_device"
 SERVICE_REPUBLISH_VIRTUAL_DEVICES = "republish_virtual_devices"
@@ -45,6 +48,7 @@ ATTR_KIND = "kind"
 ATTR_NAME = "name"
 ATTR_ROOM_HINT = "room_hint"
 ATTR_ALLOW_REVERSE = "allow_reverse"
+ATTR_SUBENTRY_ID = "subentry_id"
 
 KIND_SWITCH = "switch"
 KIND_LIGHT = "light"

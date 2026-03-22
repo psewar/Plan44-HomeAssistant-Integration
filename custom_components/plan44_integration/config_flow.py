@@ -5,6 +5,7 @@ from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.core import callback
 
 from .const import (
     CONF_AUTO_REPUBLISH,
@@ -23,6 +24,12 @@ from .const import (
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
     DOMAIN,
+    KIND_BINARY_SENSOR,
+    KIND_LIGHT,
+    KIND_SENSOR,
+    KIND_SWITCH,
+    SUBENTRY_TYPE_VIRTUAL_DEVICE,
+    SUPPORTED_KINDS,
 )
 from .plan44_client import Plan44Client
 
@@ -90,6 +97,74 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
         }
     )
 
+
+
+
+def _virtual_device_schema(current: ConfigDict | None = None) -> vol.Schema:
+    current = current or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                "entity_id",
+                default=current.get("entity_id", ""),
+            ): str,
+            vol.Required(
+                "kind",
+                default=current.get("kind", KIND_SWITCH),
+            ): vol.In(sorted(SUPPORTED_KINDS)),
+            vol.Optional(
+                "name",
+                default=current.get("name", ""),
+            ): str,
+            vol.Optional(
+                "room_hint",
+                default=current.get("room_hint", ""),
+            ): str,
+            vol.Optional(
+                "allow_reverse",
+                default=current.get("allow_reverse", True),
+            ): bool,
+        }
+    )
+
+
+def _validate_virtual_device(
+    hass,
+    entry,
+    user_input: ConfigDict,
+    exclude_entity_id: str | None = None,
+) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    entity_id = cast(str, user_input["entity_id"])
+    kind = cast(str, user_input["kind"])
+
+    state = hass.states.get(entity_id)
+    if state is None:
+        errors["base"] = "entity_not_found"
+        return errors
+
+    entity_domain = entity_id.split(".", 1)[0]
+    if entity_domain != kind:
+        errors["base"] = "kind_mismatch"
+        return errors
+
+    subentries = getattr(entry, "subentries", ())
+    for subentry in subentries:
+        data = getattr(subentry, "data", None)
+        if not isinstance(data, dict):
+            continue
+        existing = data.get("entity_id")
+        if existing == entity_id and entity_id != exclude_entity_id:
+            errors["base"] = "already_configured"
+            return errors
+
+    if kind == KIND_SENSOR:
+        try:
+            float(state.state)
+        except (TypeError, ValueError):
+            errors["base"] = "sensor_not_numeric"
+
+    return errors
 
 class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -207,6 +282,14 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls,
+        config_entry: config_entries.ConfigEntry,
+    ) -> dict[str, type[config_entries.ConfigSubentryFlow]]:
+        return {SUBENTRY_TYPE_VIRTUAL_DEVICE: Plan44VirtualDeviceSubentryFlow}
+
     @staticmethod
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
@@ -232,4 +315,55 @@ class Plan44OptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(current),
+        )
+
+
+class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
+    async def async_step_user(
+        self,
+        user_input: ConfigDict | None = None,
+    ) -> Any:
+        entry = self._get_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _validate_virtual_device(self.hass, entry, user_input)
+            if not errors:
+                entity_id = cast(str, user_input["entity_id"])
+                name = cast(str, user_input.get("name") or entity_id)
+                return self.async_create_subentry(title=name, data=user_input)
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_virtual_device_schema(user_input),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self,
+        user_input: ConfigDict | None = None,
+    ) -> Any:
+        entry = self._get_entry()
+        subentry = self._get_reconfigure_subentry()
+        current = dict(getattr(subentry, "data", {}))
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _validate_virtual_device(
+                self.hass,
+                entry,
+                user_input,
+                exclude_entity_id=cast(str, current.get("entity_id")),
+            )
+            if not errors:
+                name = cast(str, user_input.get("name") or user_input["entity_id"])
+                return self.async_update_reload_and_abort(
+                    entry,
+                    subentry=subentry,
+                    data_updates=user_input,
+                    title=name,
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_virtual_device_schema(current),
+            errors=errors,
         )
