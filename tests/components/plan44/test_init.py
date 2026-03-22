@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.core import HomeAssistant
 
-from custom_components.plan44_integration.const import DOMAIN
+from custom_components.plan44.const import DOMAIN
 
 
 async def test_setup_entry(
     hass: HomeAssistant,
-    config_entry,
-    mock_plan44_client,
+    config_entry: Any,
+    mock_plan44_client: Any,
 ) -> None:
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()

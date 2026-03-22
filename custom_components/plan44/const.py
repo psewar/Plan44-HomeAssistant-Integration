@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from .plan44_client import Plan44Client
     from .store import Plan44Store
 
-DOMAIN = "plan44_integration"
+DOMAIN = "plan44"
 
 CONF_HOST = "host"
 CONF_PORT = "port"
@@ -26,9 +26,7 @@ DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"
 DEFAULT_AUTO_REPUBLISH = True
 DEFAULT_REVERSE_ENABLED = True
 DEFAULT_RECONNECT_INTERVAL = 10
-DEFAULT_BLOCKLIST_INTEGRATIONS = (
-    "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
-)
+DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 
 SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from custom_components.plan44_integration.const import (
+from custom_components.plan44.const import (
     CONF_AUTO_REPUBLISH,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
@@ -37,9 +38,9 @@ TEST_ENTRY_DATA = {
 
 
 @pytest.fixture
-def mock_plan44_client():
+def mock_plan44_client() -> Any:
     with patch(
-        "custom_components.plan44_integration.__init__.Plan44Client",
+        "custom_components.plan44.__init__.Plan44Client",
         autospec=True,
     ) as client_cls:
         client = client_cls.return_value
@@ -55,19 +56,22 @@ def mock_plan44_client():
 
 
 @pytest.fixture
-async def config_entry(hass: HomeAssistant):
+async def config_entry(hass: HomeAssistant) -> Any:
     entry = hass.config_entries.async_add(
-        {
-            "version": 1,
-            "domain": DOMAIN,
-            "title": "plan44 (127.0.0.1)",
-            "data": TEST_ENTRY_DATA,
-            "options": {},
-        }
+        cast(
+            Any,
+            {
+                "version": 1,
+                "domain": DOMAIN,
+                "title": "plan44 (127.0.0.1)",
+                "data": TEST_ENTRY_DATA,
+                "options": {},
+            },
+        )
     )
     return entry
 
 
 @pytest.fixture
-def entity_registry(hass: HomeAssistant):
+def entity_registry(hass: HomeAssistant) -> er.EntityRegistry:
     return er.async_get(hass)

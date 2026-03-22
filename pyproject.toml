@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plan44-core"
-version = "0.16.0"
+version = "0.17.0"
 description = "Core protocol and live-test tooling for the plan44 Home Assistant integration"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -17,10 +17,10 @@ authors = [
 include-package-data = false
 
 [tool.setuptools.package-dir]
-"" = "custom_components/plan44_integration"
+"" = "custom_components/plan44"
 
 [tool.setuptools.packages.find]
-where = ["custom_components/plan44_integration"]
+where = ["custom_components/plan44"]
 include = ["plan44_core*"]
 exclude = ["tests*", "devtools*"]
 

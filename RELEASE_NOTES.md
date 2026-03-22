@@ -14,7 +14,7 @@ This archive is the first consolidated release candidate based on live verificat
 Removed unnecessary empty pytest package marker files:
 
 - `tests/live/__init__.py`
-- `tests/components/plan44_integration/__init__.py`
+- `tests/components/plan44/__init__.py`
 
 Removed generated cache directories from the archive:
 
@@ -43,7 +43,7 @@ Removed generated cache directories from the archive:
 
 ## v19
 
-- Removed the duplicated top-level `plan44_core` package and kept a single source of truth under `custom_components/plan44_integration/plan44_core`.
+- Removed the duplicated top-level `plan44_core` package and kept a single source of truth under `custom_components/plan44/plan44_core`.
 - Updated editable packaging to expose `plan44_core` from the integration package directory.
 - Added `tests/conftest.py` to make local test imports resolve consistently without duplicate code.
 - Replaced PEP 695 `type` aliases with `TypeAlias` for broader formatter/tool compatibility.

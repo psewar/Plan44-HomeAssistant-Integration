@@ -1,6 +1,6 @@
 # plan44 for Home Assistant
 
-`plan44_integration` is a custom Home Assistant integration that exports selected Home Assistant entities to plan44 as virtual devices.
+`plan44` is a custom Home Assistant integration that exports selected Home Assistant entities to plan44 as virtual devices.
 
 ## What it does
 
@@ -9,9 +9,9 @@ This integration is intended to complement an existing digitalSTROM to Home Assi
 Recommended setup:
 
 - digitalSTROM / dSS -> existing HA integration
-- Home Assistant -> `plan44_integration` -> plan44 -> digitalSTROM
+- Home Assistant -> `plan44` -> plan44 -> digitalSTROM
 
-This keeps `plan44_integration` focused on the Home Assistant -> plan44 path.
+This keeps `plan44` focused on the Home Assistant -> plan44 path.
 
 ## Current scope
 
@@ -54,7 +54,7 @@ The following mappings have been verified against a real P44 bridge:
 2. Add `plan44` via the Home Assistant UI.
 3. Enter the P44 host, port, and VDC model name.
 4. Create or choose Home Assistant entities that you want to expose to plan44.
-5. Use the `plan44_integration.create_virtual_device` service to publish them.
+5. Use the `plan44.create_virtual_device` service to publish them.
 
 ## Documentation
 
@@ -65,10 +65,10 @@ The following mappings have been verified against a real P44 bridge:
 
 ## Key services
 
-- `plan44_integration.create_virtual_device`
-- `plan44_integration.remove_virtual_device`
-- `plan44_integration.republish_virtual_devices`
-- `plan44_integration.push_entity_state`
+- `plan44.create_virtual_device`
+- `plan44.remove_virtual_device`
+- `plan44.republish_virtual_devices`
+- `plan44.push_entity_state`
 
 Detailed examples are in [Creating and managing virtual devices](docs/VIRTUAL_DEVICES.md).
 

@@ -16,7 +16,7 @@ The core handles:
 
 This is the main source of truth for the plan44 protocol mapping.
 
-### `custom_components/plan44_integration`
+### `custom_components/plan44`
 
 The Home Assistant integration acts as a thin adapter around the core.
 
@@ -59,5 +59,5 @@ When in doubt, treat these as the authoritative references in this order:
 
 1. live tests in `tests/live`
 2. protocol code in `plan44_core`
-3. Home Assistant adapter layer in `custom_components/plan44_integration`
+3. Home Assistant adapter layer in `custom_components/plan44`
 4. written documentation

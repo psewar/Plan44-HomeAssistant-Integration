@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -37,7 +38,10 @@ def live_trace_path(tmp_path: Path) -> Path:
 
 
 @pytest_asyncio.fixture
-async def live_harness(live_p44_enabled: bool, live_trace_path: Path):
+async def live_harness(
+    live_p44_enabled: bool,
+    live_trace_path: Path,
+) -> Any:
     if not live_p44_enabled:
         pytest.skip("live P44 tests disabled; set P44_TEST_ENABLED=1")
 

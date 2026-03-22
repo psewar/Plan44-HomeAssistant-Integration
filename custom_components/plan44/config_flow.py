@@ -5,7 +5,8 @@ from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow
+from homeassistant.core import HomeAssistant, callback
 
 from .const import (
     CONF_AUTO_REPUBLISH,
@@ -24,9 +25,6 @@ from .const import (
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
     DOMAIN,
-    KIND_BINARY_SENSOR,
-    KIND_LIGHT,
-    KIND_SENSOR,
     KIND_SWITCH,
     SUBENTRY_TYPE_VIRTUAL_DEVICE,
     SUPPORTED_KINDS,
@@ -61,17 +59,11 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
         {
             vol.Required(
                 CONF_AUTO_REPUBLISH,
-                default=current.get(
-                    CONF_AUTO_REPUBLISH,
-                    DEFAULT_AUTO_REPUBLISH,
-                ),
+                default=current.get(CONF_AUTO_REPUBLISH, DEFAULT_AUTO_REPUBLISH),
             ): bool,
             vol.Required(
                 CONF_REVERSE_ENABLED,
-                default=current.get(
-                    CONF_REVERSE_ENABLED,
-                    DEFAULT_REVERSE_ENABLED,
-                ),
+                default=current.get(CONF_REVERSE_ENABLED, DEFAULT_REVERSE_ENABLED),
             ): bool,
             vol.Required(
                 CONF_RECONNECT_INTERVAL,
@@ -98,24 +90,16 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
     )
 
 
-
-
 def _virtual_device_schema(current: ConfigDict | None = None) -> vol.Schema:
     current = current or {}
     return vol.Schema(
         {
-            vol.Required(
-                "entity_id",
-                default=current.get("entity_id", ""),
-            ): str,
+            vol.Required("entity_id", default=current.get("entity_id", "")): str,
             vol.Required(
                 "kind",
                 default=current.get("kind", KIND_SWITCH),
             ): vol.In(sorted(SUPPORTED_KINDS)),
-            vol.Optional(
-                "name",
-                default=current.get("name", ""),
-            ): str,
+            vol.Optional("name", default=current.get("name", "")): str,
             vol.Optional(
                 "room_hint",
                 default=current.get("room_hint", ""),
@@ -129,8 +113,8 @@ def _virtual_device_schema(current: ConfigDict | None = None) -> vol.Schema:
 
 
 def _validate_virtual_device(
-    hass,
-    entry,
+    hass: HomeAssistant,
+    entry: ConfigEntry,
     user_input: ConfigDict,
     exclude_entity_id: str | None = None,
 ) -> dict[str, str]:
@@ -148,8 +132,7 @@ def _validate_virtual_device(
         errors["base"] = "kind_mismatch"
         return errors
 
-    subentries = getattr(entry, "subentries", ())
-    for subentry in subentries:
+    for subentry in getattr(entry, "subentries", ()):
         data = getattr(subentry, "data", None)
         if not isinstance(data, dict):
             continue
@@ -158,15 +141,16 @@ def _validate_virtual_device(
             errors["base"] = "already_configured"
             return errors
 
-    if kind == KIND_SENSOR:
+    if kind == "sensor":
         try:
             float(state.state)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             errors["base"] = "sensor_not_numeric"
 
     return errors
 
-class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+
+class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(
@@ -224,7 +208,6 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ): str,
             }
         )
-
         return self.async_show_form(
             step_id="user",
             data_schema=schema,
@@ -262,14 +245,8 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(
-                    CONF_HOST,
-                    default=entry.data[CONF_HOST],
-                ): str,
-                vol.Required(
-                    CONF_PORT,
-                    default=entry.data[CONF_PORT],
-                ): int,
+                vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
+                vol.Required(CONF_PORT, default=entry.data[CONF_PORT]): int,
                 vol.Required(
                     CONF_VDC_MODEL_NAME,
                     default=entry.data[CONF_VDC_MODEL_NAME],
@@ -286,19 +263,20 @@ class Plan44IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_supported_subentry_types(
         cls,
-        config_entry: config_entries.ConfigEntry,
-    ) -> dict[str, type[config_entries.ConfigSubentryFlow]]:
+        config_entry: ConfigEntry,
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        del config_entry
         return {SUBENTRY_TYPE_VIRTUAL_DEVICE: Plan44VirtualDeviceSubentryFlow}
 
     @staticmethod
     def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
+        config_entry: ConfigEntry,
     ) -> Plan44OptionsFlow:
         return Plan44OptionsFlow(config_entry)
 
 
 class Plan44OptionsFlow(config_entries.OptionsFlow):
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+    def __init__(self, config_entry: ConfigEntry) -> None:
         self._config_entry = config_entry
 
     async def async_step_init(
@@ -325,12 +303,17 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
     ) -> Any:
         entry = self._get_entry()
         errors: dict[str, str] = {}
+
         if user_input is not None:
-            errors = _validate_virtual_device(self.hass, entry, user_input)
+            errors = _validate_virtual_device(
+                self.hass,
+                entry,
+                user_input,
+            )
             if not errors:
                 entity_id = cast(str, user_input["entity_id"])
                 name = cast(str, user_input.get("name") or entity_id)
-                return self.async_create_subentry(title=name, data=user_input)
+                return self.async_create_entry(title=name, data=user_input)
 
         return self.async_show_form(
             step_id="user",
@@ -346,6 +329,7 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         subentry = self._get_reconfigure_subentry()
         current = dict(getattr(subentry, "data", {}))
         errors: dict[str, str] = {}
+
         if user_input is not None:
             errors = _validate_virtual_device(
                 self.hass,

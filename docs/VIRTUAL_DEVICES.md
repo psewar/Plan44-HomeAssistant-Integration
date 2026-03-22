@@ -4,7 +4,7 @@ This page explains how to create Home Assistant entities that are good sources f
 
 ## Important idea
 
-`plan44_integration` does **not** invent its own device definitions. Instead, it takes **existing Home Assistant entities** and publishes them to plan44.
+`plan44` does **not** invent its own device definitions. Instead, it takes **existing Home Assistant entities** and publishes them to plan44.
 
 That means you first need a suitable Home Assistant entity, and then you export it.
 
@@ -40,7 +40,7 @@ The service expects a real `switch.*` entity for `kind: switch`.
 
 A common mistake is to assume Home Assistant has a native helper named `switch`. For simple virtual toggles, the usual helper is actually **`input_boolean`**.
 
-Because `plan44_integration` validates entity domains, the clean pattern is:
+Because `plan44` validates entity domains, the clean pattern is:
 
 - create an `input_boolean`
 - expose it as a **template switch**
@@ -131,7 +131,7 @@ Once the Home Assistant entity exists, call the service:
 ### Switch example
 
 ```yaml
-service: plan44_integration.create_virtual_device
+service: plan44.create_virtual_device
 data:
   entity_id: switch.plan44_test_switch
   kind: switch
@@ -142,7 +142,7 @@ data:
 ### Light example
 
 ```yaml
-service: plan44_integration.create_virtual_device
+service: plan44.create_virtual_device
 data:
   entity_id: light.my_virtual_light
   kind: light
@@ -153,7 +153,7 @@ data:
 ### Sensor example
 
 ```yaml
-service: plan44_integration.create_virtual_device
+service: plan44.create_virtual_device
 data:
   entity_id: sensor.plan44_test_temperature
   kind: sensor
@@ -163,7 +163,7 @@ data:
 ### Binary sensor example
 
 ```yaml
-service: plan44_integration.create_virtual_device
+service: plan44.create_virtual_device
 data:
   entity_id: binary_sensor.plan44_test_contact
   kind: binary_sensor
@@ -175,7 +175,7 @@ data:
 ### Remove a virtual device
 
 ```yaml
-service: plan44_integration.remove_virtual_device
+service: plan44.remove_virtual_device
 data:
   entity_id: switch.plan44_test_switch
 ```
@@ -183,13 +183,13 @@ data:
 ### Republish all configured virtual devices
 
 ```yaml
-service: plan44_integration.republish_virtual_devices
+service: plan44.republish_virtual_devices
 ```
 
 ### Push current state again
 
 ```yaml
-service: plan44_integration.push_entity_state
+service: plan44.push_entity_state
 data:
   entity_id: sensor.plan44_test_temperature
 ```

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import pytest
+from typing import Any
 
+import pytest
 from plan44_core.models import LightState, VirtualDeviceSpec
 
 
 @pytest.mark.live_p44
-async def test_live_light_roundtrip(live_harness) -> None:
+async def test_live_light_roundtrip(live_harness: Any) -> None:
     spec = VirtualDeviceSpec(
         device_id="test::light.live",
         name="Live Test Light",

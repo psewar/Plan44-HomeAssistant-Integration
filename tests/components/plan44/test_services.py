@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-from homeassistant.core import HomeAssistant
+from typing import Any
 
-from custom_components.plan44_integration.const import DOMAIN
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+
+from custom_components.plan44.const import DOMAIN
 
 
 async def test_create_virtual_device_service(
-    hass: HomeAssistant, config_entry, mock_plan44_client, entity_registry
+    hass: HomeAssistant,
+    config_entry: Any,
+    mock_plan44_client: Any,
+    entity_registry: er.EntityRegistry,
 ) -> None:
     hass.states.async_set("switch.test_switch", "off")
     entity_registry.async_get_or_create(
@@ -41,7 +47,10 @@ async def test_create_virtual_device_service(
 
 
 async def test_push_entity_state_service(
-    hass: HomeAssistant, config_entry, mock_plan44_client, entity_registry
+    hass: HomeAssistant,
+    config_entry: Any,
+    mock_plan44_client: Any,
+    entity_registry: er.EntityRegistry,
 ) -> None:
     hass.states.async_set("switch.test_switch", "on")
     entity_registry.async_get_or_create(

@@ -2,7 +2,7 @@
 
 ## Install the integration
 
-Copy `custom_components/plan44_integration` into your Home Assistant configuration directory and restart Home Assistant.
+Copy `custom_components/plan44` into your Home Assistant configuration directory and restart Home Assistant.
 
 Then add the integration via:
 
@@ -52,7 +52,7 @@ If you configure more than one `plan44` entry, the service calls can include `en
 Example:
 
 ```yaml
-service: plan44_integration.create_virtual_device
+service: plan44.create_virtual_device
 data:
   entry_id: YOUR_CONFIG_ENTRY_ID
   entity_id: switch.test_switch

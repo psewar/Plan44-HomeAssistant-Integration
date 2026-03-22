@@ -3,13 +3,20 @@
   "pythonVersion": "3.14",
   "include": [
     "custom_components",
-    "plan44_core",
+    "tests",
     "devtools"
   ],
   "exclude": [
     "**/__pycache__",
-    "tests",
     ".venv"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "custom_components/plan44"
+      ]
+    }
   ],
   "reportMissingTypeStubs": false,
   "reportUnknownMemberType": false,

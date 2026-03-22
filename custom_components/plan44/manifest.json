@@ -1,0 +1,13 @@
+{
+  "domain": "plan44",
+  "name": "plan44",
+  "version": "0.4.0",
+  "config_flow": true,
+  "iot_class": "local_push",
+  "documentation": "https://example.invalid/plan44",
+  "issue_tracker": "https://example.invalid/plan44/issues",
+  "requirements": [],
+  "codeowners": [
+    "@kay"
+  ]
+}
