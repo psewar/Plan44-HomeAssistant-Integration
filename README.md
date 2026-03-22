@@ -18,6 +18,15 @@ Version 1 focuses on:
 - reconfigure flow for changing host/port/model without deleting the config entry
 - diagnostics and system health support
 
+## Live-verified device matrix
+
+The following mappings have been verified against a real P44 bridge:
+
+- `switch` -> P44 `output: "light"` with channel `index: 0` and values `0/100`
+- `light` -> P44 `output: "light"` with channel `index: 0` and brightness mapped to `0..100`
+- `sensor` -> P44 `protocol: "simple"` with `sensors: [...]` and updates via `message: "sensor"`
+- `binary_sensor` -> P44 input device with `inputs: [...]` and updates via `message: "input"`
+
 ## Intended architecture
 
 This integration is designed to complement an existing digitalSTROM -> Home Assistant integration.
@@ -175,7 +184,7 @@ POSIX modules such as `fcntl`. Because of that, the test suite should be run in
 
 Recommended local test setup on Windows:
 
-- use WSL2 with Python 3.12 or 3.13
+- use WSL2 with Python 3.14
 - or run the tests in a Linux container
 
 The integration itself can still be edited on Windows; this limitation affects
@@ -235,7 +244,7 @@ These tests are skipped unless `P44_TEST_ENABLED=1` is set.
 This repository is structured to be friendlier to strict static analysis.
 
 Recommended VS Code settings:
-- Python interpreter: Python 3.12 or 3.13
+- Python interpreter: Python 3.14
 - Pylance type checking mode: `strict`
 
 A `pyrightconfig.json` file is included for local static analysis.
@@ -298,3 +307,15 @@ The repository separates live plan44 protocol tests from Home Assistant adapter 
 - `pytest.ha.ini` is reserved for Home Assistant adapter tests
 
 Recommended runtime for development and CI is Python 3.14.3.
+
+
+## Notes on P44 protocol mappings
+
+The live tests against a real P44 bridge have shown:
+
+- `switch` is best represented as `output: "light"` on the P44 external device API
+- `light` is also represented as `output: "light"`
+- `sensor` uses `protocol: "simple"` with a `sensors` array
+- `binary_sensor` is modeled as an input device with an `inputs` array and state updates via `message: "input"`
+
+These mappings are based on the German plan44 custom-device examples and are intentionally validated against a real P44 bridge before they are treated as stable defaults.

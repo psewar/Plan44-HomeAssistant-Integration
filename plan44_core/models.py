@@ -25,6 +25,11 @@ class VirtualDeviceSpec:
     sensor_resolution: float | None = None
     sensor_update_interval: int | None = None
     sensor_alive_sign_interval: int | None = None
+    input_type: int = 0
+    input_usage: int = 2
+    input_group: int = 8
+    input_update_interval: int | None = None
+    input_alive_sign_interval: int | None = None
 
     @property
     def tag(self) -> str:

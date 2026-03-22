@@ -34,6 +34,11 @@ class SupportsInitSpec(Protocol):
     sensor_resolution: float | None
     sensor_update_interval: int | None
     sensor_alive_sign_interval: int | None
+    input_type: int
+    input_usage: int
+    input_group: int
+    input_update_interval: int | None
+    input_alive_sign_interval: int | None
 
 
 def build_initvdc_message(model_name: str) -> dict[str, Any]:
@@ -54,7 +59,7 @@ def build_init_message(spec: SupportsInitSpec | VirtualDeviceSpec) -> dict[str, 
     if spec.kind in {"switch", "light"}:
         payload["output"] = "light"
     elif spec.kind == "binary_sensor":
-        payload["output"] = "switch"
+        payload["inputs"] = [_build_input_definition(spec)]
     elif spec.kind == "sensor":
         payload["protocol"] = "simple"
         payload["sensors"] = [_build_sensor_definition(spec)]
@@ -90,11 +95,25 @@ def build_sensor_message(
     }
 
 
+def build_input_message(
+    device_id: str,
+    value: int | bool,
+    index: int = 0,
+) -> dict[str, Any]:
+    numeric = 1 if bool(value) else 0
+    return {
+        "message": "input",
+        "tag": device_id,
+        "index": index,
+        "value": numeric,
+    }
+
+
 def state_to_messages(device_id: str, state: DeviceState) -> list[dict[str, Any]]:
     if isinstance(state, SwitchState):
         return [build_channel_message(device_id, 100 if state.is_on else 0)]
     if isinstance(state, BinarySensorState):
-        return [build_channel_message(device_id, 100 if state.is_on else 0)]
+        return [build_input_message(device_id, state.is_on)]
     if isinstance(state, LightState):
         return [build_channel_message(device_id, light_state_to_p44_value(state))]
     if isinstance(state, SensorState):
@@ -185,6 +204,21 @@ def _build_sensor_definition(
     return sensor_def
 
 
+def _build_input_definition(
+    spec: SupportsInitSpec | VirtualDeviceSpec,
+) -> dict[str, Any]:
+    input_def: dict[str, Any] = {
+        "inputtype": spec.input_type,
+        "usage": spec.input_usage,
+        "group": spec.input_group,
+        "hardwarename": spec.name,
+        "updateinterval": spec.input_update_interval or 60,
+    }
+    if spec.input_alive_sign_interval is not None:
+        input_def["alivesigninterval"] = spec.input_alive_sign_interval
+    return input_def
+
+
 def _sensor_defaults_for_unit(unit: str | None) -> tuple[int, float, float, float]:
     normalized = (unit or "").strip().lower()
     if normalized in {"°c", "c", "degc"}:
@@ -201,4 +235,6 @@ def _sensor_defaults_for_unit(unit: str | None) -> tuple[int, float, float, floa
 def _default_model_for_kind(kind: DeviceKind) -> str:
     if kind == "sensor":
         return "Home Assistant Virtual Sensor"
+    if kind == "binary_sensor":
+        return "Home Assistant Virtual Input"
     return "Home Assistant Virtual Device"
