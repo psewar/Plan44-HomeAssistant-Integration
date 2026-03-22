@@ -71,11 +71,14 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall) -> Plan44ConfigEntry:
         for entry in entries:
             if entry.entry_id == requested_entry_id:
                 return cast(Plan44ConfigEntry, entry)
-        raise HomeAssistantError(f"Unknown plan44 entry_id: {requested_entry_id}")
+        raise HomeAssistantError(
+            f"Unknown plan44 entry_id: {requested_entry_id}"
+        )
 
     if len(entries) > 1:
         raise HomeAssistantError(
-            "Multiple plan44 entries configured; specify entry_id in the service call"
+            "Multiple plan44 entries configured; "
+            "specify entry_id in the service call"
         )
 
     return cast(Plan44ConfigEntry, entries[0])

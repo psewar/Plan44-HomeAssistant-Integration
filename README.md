@@ -156,6 +156,7 @@ Install the exact toolchain versions from `requirements_test.txt` for reproducib
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements_test.txt
+pip install -e .
 ```
 
 ### Run tests
@@ -270,6 +271,7 @@ Use this for protocol work and tests against a real plan44 bridge:
 
 ```bash
 pip install -r requirements_test.txt
+pip install -e .
 python devtools/run_live_tests.py
 ```
 

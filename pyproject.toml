@@ -1,3 +1,25 @@
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plan44-core"
+version = "0.16.0"
+description = "Core protocol and live-test tooling for the plan44 Home Assistant integration"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+authors = [
+  { name = "Kay" },
+]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["plan44_core*"]
+exclude = ["tests*", "custom_components*", "devtools*"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"
