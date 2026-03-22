@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "plan44 Integration",
+        "title": "plan44",
         "description": "Configure the connection to plan44.",
         "data": {
           "host": "Host",

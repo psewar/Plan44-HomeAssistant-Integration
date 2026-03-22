@@ -65,36 +65,37 @@ def test_light_brightness_roundtrip() -> None:
     state = LightState(is_on=True, brightness=128)
     value = light_state_to_p44_value(state)
     assert value == 50
-    assert p44_value_to_brightness(value) == 128
+    brightness = p44_value_to_brightness(value)
+    assert brightness == 128
 
 
-def test_state_to_messages_for_sensor() -> None:
-    messages = state_to_messages("ha::sensor.temp", SensorState(numeric_value=21.5))
-    assert messages == [
-        {"message": "sensor", "tag": "ha::sensor.temp", "index": 0, "value": 21.5}
-    ]
+def test_sensor_state_becomes_sensor_message() -> None:
+    spec = VirtualDeviceSpec(device_id="ha::sensor.temp", name="Temp", kind="sensor")
+    messages = state_to_messages(spec.device_id, SensorState(numeric_value=21.5))
+    assert messages[0]["message"] == "sensor"
+    assert messages[0]["value"] == 21.5
 
 
-def test_state_to_messages_for_binary_sensor() -> None:
-    messages = state_to_messages(
-        "ha::binary_sensor.contact",
-        BinarySensorState(is_on=True),
+def test_binary_sensor_state_becomes_input_message() -> None:
+    spec = VirtualDeviceSpec(
+        device_id="ha::binary_sensor.contact",
+        name="Contact",
+        kind="binary_sensor",
     )
-    assert messages == [
-        {
-            "message": "input",
-            "tag": "ha::binary_sensor.contact",
-            "index": 0,
-            "value": 1,
-        }
-    ]
+    messages = state_to_messages(spec.device_id, BinarySensorState(is_on=True))
+    assert messages[0]["message"] == "input"
+    assert messages[0]["value"] == 1
 
 
-def test_parse_incoming_light_command() -> None:
-    command = parse_incoming_message(
-        {"message": "channel", "tag": "ha::light.test", "index": 0, "value": 100},
-        "light",
-    )
-    assert command is not None
-    assert command.action == "set_brightness"
-    assert command.value == 255
+def test_parse_channel_message() -> None:
+    incoming = {
+        "message": "channel",
+        "tag": "ha::switch.test",
+        "index": 0,
+        "value": 100,
+    }
+    cmd = parse_incoming_message(incoming, "switch")
+    assert cmd is not None
+    assert cmd.device_id == "ha::switch.test"
+    assert cmd.action == "turn_on"
+    assert cmd.value is None

@@ -329,3 +329,9 @@ The live tests against a real P44 bridge have shown:
 - `binary_sensor` is modeled as an input device with an `inputs` array and state updates via `message: "input"`
 
 These mappings are based on the German plan44 custom-device examples and are intentionally validated against a real P44 bridge before they are treated as stable defaults.
+
+
+## Architecture note
+
+`plan44_core` has a single source of truth under `custom_components/plan44_integration/plan44_core`.
+The editable package installation exposes that code for local tooling and CI, so the repository does not maintain a duplicated core implementation.

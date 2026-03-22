@@ -6,8 +6,13 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from plan44_core.models import DeviceCommand, DeviceKind, DeviceState, VirtualDeviceSpec
-from plan44_core.protocol import (
+from .plan44_core.models import (
+    DeviceCommand,
+    DeviceKind,
+    DeviceState,
+    VirtualDeviceSpec,
+)
+from .plan44_core.protocol import (
     build_channel_message,
     build_init_message,
     build_initvdc_message,

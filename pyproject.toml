@@ -16,9 +16,13 @@ authors = [
 [tool.setuptools]
 include-package-data = false
 
+[tool.setuptools.package-dir]
+"" = "custom_components/plan44_integration"
+
 [tool.setuptools.packages.find]
+where = ["custom_components/plan44_integration"]
 include = ["plan44_core*"]
-exclude = ["tests*", "custom_components*", "devtools*"]
+exclude = ["tests*", "devtools*"]
 
 [tool.ruff]
 line-length = 88

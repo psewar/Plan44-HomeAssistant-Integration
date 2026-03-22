@@ -40,3 +40,10 @@ Removed generated cache directories from the archive:
 - Marked `Plan44ConfigEntry` as a real type alias for stricter Pyright compatibility.
 - Cleaned remaining Ruff issues in import ordering and test files.
 - Replaced `asyncio.TimeoutError` with builtin `TimeoutError`.
+
+## v19
+
+- Removed the duplicated top-level `plan44_core` package and kept a single source of truth under `custom_components/plan44_integration/plan44_core`.
+- Updated editable packaging to expose `plan44_core` from the integration package directory.
+- Added `tests/conftest.py` to make local test imports resolve consistently without duplicate code.
+- Replaced PEP 695 `type` aliases with `TypeAlias` for broader formatter/tool compatibility.

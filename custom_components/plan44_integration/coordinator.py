@@ -12,15 +12,6 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
 
-from plan44_core.models import (
-    BinarySensorState,
-    DeviceCommand,
-    DeviceState,
-    LightState,
-    SensorState,
-    SwitchState,
-)
-
 from .const import (
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
@@ -36,6 +27,14 @@ from .const import (
     Plan44ConfigEntry,
 )
 from .plan44_client import Plan44Client
+from .plan44_core.models import (
+    BinarySensorState,
+    DeviceCommand,
+    DeviceState,
+    LightState,
+    SensorState,
+    SwitchState,
+)
 from .store import Plan44Store
 
 _LOGGER = logging.getLogger(__name__)
