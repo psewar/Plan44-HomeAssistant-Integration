@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from plan44_core.models import (
     BinarySensorState,
     LightState,
@@ -7,8 +9,8 @@ from plan44_core.models import (
 from plan44_core.protocol import (
     build_init_message,
     light_state_to_p44_value,
-    parse_incoming_message,
     p44_value_to_brightness,
+    parse_incoming_message,
     state_to_messages,
 )
 

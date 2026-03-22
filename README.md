@@ -140,9 +140,17 @@ To reduce feedback loops, the integration supports:
 
 For safety, start with manually selected entities only.
 
+## Runtime baseline
+
+- Python **3.14.3** is the supported baseline for this repository.
+- The code is intentionally optimized for current Python and current Home Assistant test tooling.
+- Older Python compatibility shims have been removed.
+
 ## Development
 
 ### Local setup
+
+Install the exact toolchain versions from `requirements_test.txt` for reproducible results.
 
 ```bash
 python -m venv .venv

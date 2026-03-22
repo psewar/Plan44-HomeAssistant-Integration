@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import cast
 
 from homeassistant.components import system_health
 from homeassistant.core import HomeAssistant

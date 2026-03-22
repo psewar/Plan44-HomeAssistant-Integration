@@ -14,8 +14,8 @@ if str(REPO_ROOT) not in sys.path:
 
 load_dotenv(REPO_ROOT / "devtools" / ".env.live", override=False)
 
-from plan44_core.harness import P44TestHarness, TraceRecorder
-from plan44_core.session import P44Session
+from plan44_core.harness import P44TestHarness, TraceRecorder  # noqa: E402
+from plan44_core.session import P44Session  # noqa: E402
 
 
 def pytest_configure(config: pytest.Config) -> None:

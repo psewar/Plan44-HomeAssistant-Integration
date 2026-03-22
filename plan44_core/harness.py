@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .models import DeviceCommand, DeviceState, VirtualDeviceSpec
 from .session import P44Session
 
-JsonDict = dict[str, Any]
+type JsonDict = dict[str, Any]
 
 
 class TraceRecorder:
@@ -19,7 +19,7 @@ class TraceRecorder:
 
     async def __call__(self, direction: str, message: JsonDict) -> None:
         record: JsonDict = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "direction": direction,
             "message": message,
         }

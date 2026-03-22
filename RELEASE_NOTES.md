@@ -24,3 +24,19 @@ Removed generated cache directories from the archive:
 
 - Python 3.14.3
 - WSL2 / Linux for test execution
+
+## Modernization in this build
+
+- Switched trace timestamps back to `datetime.UTC`.
+- Updated `pyrightconfig.json` to Python 3.14.
+- Pinned test and tooling dependencies to their current latest stable versions.
+- Marked the repository as Python-3.14-first rather than keeping older-Python compatibility shims.
+
+
+## v16
+
+- Split HA test dependencies from core/live test pins to avoid pytest resolver conflicts.
+- Updated HA test dependency to `pytest-homeassistant-custom-component==0.13.319`.
+- Marked `Plan44ConfigEntry` as a real type alias for stricter Pyright compatibility.
+- Cleaned remaining Ruff issues in import ordering and test files.
+- Replaced `asyncio.TimeoutError` with builtin `TimeoutError`.

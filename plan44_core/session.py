@@ -17,7 +17,7 @@ from .protocol import (
 
 _LOGGER = logging.getLogger(__name__)
 
-JsonDict = dict[str, Any]
+type JsonDict = dict[str, Any]
 TraceHook = Callable[[str, JsonDict], Awaitable[None]]
 IncomingHook = Callable[[JsonDict], Awaitable[None]]
 
@@ -118,7 +118,7 @@ class P44Session:
                 break
             try:
                 message = await asyncio.wait_for(self._queue.get(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 break
             collected.append(message)
 

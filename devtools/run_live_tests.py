@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
+
+from dotenv import dotenv_values
 
 
 def main() -> int:
@@ -10,12 +13,9 @@ def main() -> int:
 
     env_file = Path("devtools/.env.live")
     if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            env.setdefault(key, value)
+        for key, value in dotenv_values(env_file).items():
+            if value is not None:
+                env.setdefault(key, value)
 
     repo_root = str(Path(__file__).resolve().parents[1])
     current_pythonpath = env.get("PYTHONPATH")
@@ -26,6 +26,8 @@ def main() -> int:
     )
 
     command = [
+        sys.executable,
+        "-m",
         "pytest",
         "-c",
         "pytest.live.ini",
