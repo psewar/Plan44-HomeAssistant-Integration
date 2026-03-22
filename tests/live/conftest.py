@@ -6,10 +6,13 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+load_dotenv(REPO_ROOT / "devtools" / ".env.live", override=False)
 
 from plan44_core.harness import P44TestHarness, TraceRecorder
 from plan44_core.session import P44Session

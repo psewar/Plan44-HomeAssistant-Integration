@@ -43,3 +43,17 @@ class P44TestHarness:
 
     async def wait_for_command(self, timeout: float = 5.0) -> DeviceCommand | None:
         return await self.session.wait_for_command(timeout=timeout)
+
+    async def collect_messages_for(self, duration: float = 0.25) -> list[JsonDict]:
+        return await self.session.collect_messages_for(duration=duration)
+
+    async def assert_no_error_status(self, duration: float = 0.25) -> None:
+        messages = await self.collect_messages_for(duration=duration)
+        errors = [
+            message
+            for message in messages
+            if message.get("message") == "status"
+            and str(message.get("status", "")).lower() == "error"
+        ]
+        if errors:
+            raise AssertionError(f"P44 returned error status messages: {errors!r}")

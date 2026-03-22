@@ -17,10 +17,21 @@ class VirtualDeviceSpec:
     model: str | None = None
     iconname: str = "vdc_ext"
     sync: bool = True
-    metadata: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    sensor_type: int | None = None
+    sensor_usage: int = 1
+    sensor_min: float | None = None
+    sensor_max: float | None = None
+    sensor_resolution: float | None = None
+    sensor_update_interval: int | None = None
+    sensor_alive_sign_interval: int | None = None
 
     @property
     def tag(self) -> str:
+        return self.device_id
+
+    @property
+    def uniqueid(self) -> str:
         return self.device_id
 
 

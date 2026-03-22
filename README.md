@@ -268,3 +268,33 @@ pytest -c pytest.ha.ini tests/components -vv
 ```
 
 Some versions of the Home Assistant test stack still import `pkg_resources`. Setuptools officially deprecated `pkg_resources` long ago and removed it from current distributions as of `setuptools` 82.0.0, so any remaining use is upstream compatibility debt rather than a repository-local requirement.
+
+
+## Live test notes
+
+For `P44_TEST_HOST`, use a bare hostname or IP address without a URL scheme, for example `utgard.gothrist.ch` and not `https://utgard.gothrist.ch`. Live tests also fail when P44 returns protocol-level `status:error` responses.
+
+
+## P44 output mapping notes
+
+For compatibility with documented plan44 external-device examples, exported Home Assistant `switch` devices are currently registered on the P44 side as `output: "light"` and controlled with `0/100` channel values. This keeps the Home Assistant semantics as `switch` while using the documented P44 output channel model.
+
+
+## Confirmed live against a real plan44 bridge
+
+These mappings were verified against a real plan44 bridge using the live test harness:
+
+- `switch` -> P44 `output: "light"` with channel `0`
+- `light` -> P44 `output: "light"` with channel `0`
+- external devices require `uniqueid`
+
+This behavior matches the plan44 custom-device examples and the external device API compatibility notes in the German documentation.
+
+## Live test setup
+
+The repository separates live plan44 protocol tests from Home Assistant adapter tests:
+
+- `pytest.live.ini` runs the pure `plan44_core` live tests without the Home Assistant pytest plugin stack
+- `pytest.ha.ini` is reserved for Home Assistant adapter tests
+
+Recommended runtime for development and CI is Python 3.14.3.

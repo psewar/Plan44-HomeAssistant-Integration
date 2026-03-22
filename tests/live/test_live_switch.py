@@ -13,4 +13,7 @@ async def test_live_switch_roundtrip(live_harness) -> None:
         kind="switch",
     )
     await live_harness.provision([spec])
+    await live_harness.assert_no_error_status()
+
     await live_harness.set_state(spec, SwitchState(is_on=True))
+    await live_harness.assert_no_error_status()

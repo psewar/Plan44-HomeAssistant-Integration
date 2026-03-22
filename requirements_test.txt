@@ -2,4 +2,5 @@ pytest
 pytest-asyncio
 ruff
 mypy
+pyright
 python-dotenv

@@ -107,6 +107,23 @@ class P44Session:
             if command is not None:
                 return command
 
+    async def collect_messages_for(self, duration: float = 0.25) -> list[JsonDict]:
+        collected: list[JsonDict] = []
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + duration
+
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            try:
+                message = await asyncio.wait_for(self._queue.get(), timeout=remaining)
+            except asyncio.TimeoutError:
+                break
+            collected.append(message)
+
+        return collected
+
     async def _read_loop(self) -> None:
         reader = self._reader
         if reader is None:

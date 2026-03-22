@@ -30,8 +30,6 @@ def main() -> int:
         "-c",
         "pytest.live.ini",
         "tests/live",
-        "-m",
-        "live_p44",
         "-vv",
         "-s",
     ]

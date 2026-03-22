@@ -26,6 +26,14 @@ class SupportsInitSpec(Protocol):
     model: str | None
     iconname: str
     sync: bool
+    uniqueid: str
+    sensor_type: int | None
+    sensor_usage: int
+    sensor_min: float | None
+    sensor_max: float | None
+    sensor_resolution: float | None
+    sensor_update_interval: int | None
+    sensor_alive_sign_interval: int | None
 
 
 def build_initvdc_message(model_name: str) -> dict[str, Any]:
@@ -40,12 +48,16 @@ def build_init_message(spec: SupportsInitSpec | VirtualDeviceSpec) -> dict[str, 
         "model": spec.model or _default_model_for_kind(spec.kind),
         "iconname": spec.iconname,
         "sync": spec.sync,
+        "uniqueid": spec.uniqueid,
     }
 
-    if spec.kind in {"switch", "light", "binary_sensor"}:
+    if spec.kind in {"switch", "light"}:
+        payload["output"] = "light"
+    elif spec.kind == "binary_sensor":
         payload["output"] = "switch"
     elif spec.kind == "sensor":
-        payload["sensor"] = spec.unit or "generic"
+        payload["protocol"] = "simple"
+        payload["sensors"] = [_build_sensor_definition(spec)]
     else:
         raise ValueError(f"Unsupported device kind: {spec.kind}")
 
@@ -143,6 +155,47 @@ def p44_value_to_brightness(value: int | float) -> int:
     if numeric == 0:
         return 0
     return max(1, round((numeric / P44_MAX_CHANNEL_VALUE) * LIGHT_MAX_BRIGHTNESS))
+
+
+def _build_sensor_definition(
+    spec: SupportsInitSpec | VirtualDeviceSpec,
+) -> dict[str, Any]:
+    sensortype, min_value, max_value, resolution = _sensor_defaults_for_unit(spec.unit)
+
+    if spec.sensor_type is not None:
+        sensortype = spec.sensor_type
+    if spec.sensor_min is not None:
+        min_value = spec.sensor_min
+    if spec.sensor_max is not None:
+        max_value = spec.sensor_max
+    if spec.sensor_resolution is not None:
+        resolution = spec.sensor_resolution
+
+    sensor_def: dict[str, Any] = {
+        "sensortype": sensortype,
+        "usage": spec.sensor_usage,
+        "hardwarename": spec.name,
+        "min": min_value,
+        "max": max_value,
+        "resolution": resolution,
+        "updateinterval": spec.sensor_update_interval or 60,
+    }
+    if spec.sensor_alive_sign_interval is not None:
+        sensor_def["alivesigninterval"] = spec.sensor_alive_sign_interval
+    return sensor_def
+
+
+def _sensor_defaults_for_unit(unit: str | None) -> tuple[int, float, float, float]:
+    normalized = (unit or "").strip().lower()
+    if normalized in {"°c", "c", "degc"}:
+        return (1, 0.0, 100.0, 0.1)
+    if normalized in {"%", "percent"}:
+        return (2, 0.0, 100.0, 1.0)
+    if normalized in {"w", "watt", "watts"}:
+        return (14, 0.0, 2300.0, 1.0)
+    if normalized in {"hpa", "mbar"}:
+        return (18, 0.0, 1200.0, 1.0)
+    return (0, 0.0, 100.0, 1.0)
 
 
 def _default_model_for_kind(kind: DeviceKind) -> str:
