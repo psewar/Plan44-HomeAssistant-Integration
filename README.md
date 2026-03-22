@@ -1,6 +1,17 @@
-# plan44 Integration for Home Assistant
+# plan44 for Home Assistant
 
 `plan44_integration` is a custom Home Assistant integration that exports selected Home Assistant entities to plan44 as virtual devices.
+
+## What it does
+
+This integration is intended to complement an existing digitalSTROM to Home Assistant integration.
+
+Recommended setup:
+
+- digitalSTROM / dSS -> existing HA integration
+- Home Assistant -> `plan44_integration` -> plan44 -> digitalSTROM
+
+This keeps `plan44_integration` focused on the Home Assistant -> plan44 path.
 
 ## Current scope
 
@@ -9,7 +20,7 @@ Version 1 focuses on:
 - Home Assistant -> plan44 export
 - bidirectional control for:
   - `switch`
-  - `light` (on/off + brightness mapping)
+  - `light` (on/off + brightness)
 - forward export for:
   - `sensor`
   - `binary_sensor`
@@ -27,32 +38,6 @@ The following mappings have been verified against a real P44 bridge:
 - `sensor` -> P44 `protocol: "simple"` with `sensors: [...]` and updates via `message: "sensor"`
 - `binary_sensor` -> P44 input device with `inputs: [...]` and updates via `message: "input"`
 
-## Intended architecture
-
-This integration is designed to complement an existing digitalSTROM -> Home Assistant integration.
-
-Recommended setup:
-
-- digitalSTROM / dSS -> existing HA integration
-- Home Assistant -> `plan44_integration` -> plan44 -> digitalSTROM
-
-This avoids rebuilding digitalSTROM discovery and keeps this integration focused on the Home Assistant -> plan44 path.
-
-## Features
-
-- Config Flow for plan44 connection setup
-- Reconfigure Flow for host/port/VDC model updates
-- Options Flow for runtime behavior
-- Home Assistant services for:
-  - `plan44_integration.create_virtual_device`
-  - `plan44_integration.remove_virtual_device`
-  - `plan44_integration.republish_virtual_devices`
-  - `plan44_integration.push_entity_state`
-- storage-backed export mapping
-- reverse control from plan44 to Home Assistant for supported actuator types
-- optional `entry_id` parameter in services when multiple config entries exist
-- diagnostics and system health support
-
 ## Supported entity types
 
 ### Bidirectional
@@ -63,68 +48,29 @@ This avoids rebuilding digitalSTROM discovery and keeps this integration focused
 - `sensor`
 - `binary_sensor`
 
-## Configuration
+## Quick start
 
-After installing the integration, add it via the Home Assistant UI.
+1. Install the custom integration.
+2. Add `plan44` via the Home Assistant UI.
+3. Enter the P44 host, port, and VDC model name.
+4. Create or choose Home Assistant entities that you want to expose to plan44.
+5. Use the `plan44_integration.create_virtual_device` service to publish them.
 
-Required settings:
-- host
-- port
-- VDC model name
+## Documentation
 
-Optional settings:
-- auto republish
-- reverse control enabled
-- reconnect interval
-- blocked integrations
-- blocked entity ID prefixes
+- [Configuration and setup](docs/CONFIGURATION.md)
+- [Creating and managing virtual devices](docs/VIRTUAL_DEVICES.md)
+- [Testing and live verification](docs/TESTING.md)
+- [Architecture and protocol notes](docs/ARCHITECTURE.md)
 
-## Services
+## Key services
 
-### Create a virtual device
+- `plan44_integration.create_virtual_device`
+- `plan44_integration.remove_virtual_device`
+- `plan44_integration.republish_virtual_devices`
+- `plan44_integration.push_entity_state`
 
-```yaml
-service: plan44_integration.create_virtual_device
-data:
-  entity_id: switch.test_switch
-  kind: switch
-  name: Test Switch
-  allow_reverse: true
-```
-
-When multiple plan44 config entries are configured, add `entry_id`.
-
-```yaml
-service: plan44_integration.create_virtual_device
-data:
-  entry_id: YOUR_CONFIG_ENTRY_ID
-  entity_id: switch.test_switch
-  kind: switch
-  name: Test Switch
-  allow_reverse: true
-```
-
-### Remove a virtual device
-
-```yaml
-service: plan44_integration.remove_virtual_device
-data:
-  entity_id: switch.test_switch
-```
-
-### Republish all virtual devices
-
-```yaml
-service: plan44_integration.republish_virtual_devices
-```
-
-### Push current entity state
-
-```yaml
-service: plan44_integration.push_entity_state
-data:
-  entity_id: switch.test_switch
-```
+Detailed examples are in [Creating and managing virtual devices](docs/VIRTUAL_DEVICES.md).
 
 ## Preventing loops
 
@@ -146,192 +92,30 @@ For safety, start with manually selected entities only.
 - The code is intentionally optimized for current Python and current Home Assistant test tooling.
 - Older Python compatibility shims have been removed.
 
-## Development
-
-### Local setup
-
-Install the exact toolchain versions from `requirements_test.txt` for reproducible results.
+## Development quick start
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements_test.txt
+pip install -r requirements_ha_test.txt
 pip install -e .
 ```
 
-### Run tests
+Then run:
 
 ```bash
-pytest
-```
-
-### Run linting
-
-```bash
+pyright
 ruff check .
-ruff format --check .
+pytest tests/unit -q
 ```
 
-## Roadmap
-
-- reverse-path tests with more message variants
-- improved management UI for exported entities
-- optional P44 -> Home Assistant import path
-- additional device classes
-- finer-grained plan44 message handling
+For live P44 tests, see [Testing and live verification](docs/TESTING.md).
 
 ## Notes
 
-This repository is an MVP foundation. plan44 message semantics may need refinement against a real target system.
-
-
-## Running tests on Windows
-
-`pytest-homeassistant-custom-component` imports parts of Home Assistant that expect
-POSIX modules such as `fcntl`. Because of that, the test suite should be run in
-**WSL, Docker, or another Linux environment**, not in native Windows Python.
-
-Recommended local test setup on Windows:
-
-- use WSL2 with Python 3.14
-- or run the tests in a Linux container
-
-The integration itself can still be edited on Windows; this limitation affects
-mainly the Home Assistant test environment.
-
-
-## plan44_core and live testing without Home Assistant
-
-The repository also contains a HA-independent `plan44_core` package. It is intended for:
-
-- protocol and mapping tests without Home Assistant
-- live tests against a real plan44 bridge
-- recording raw RX/TX traffic for device-type debugging
-
-### Why this split exists
-
-The Home Assistant integration should remain a thin adapter layer. The protocol and device-type behavior is easier to develop and regression-test in isolation.
-
-### Core package structure
-
-- `plan44_core.models`: generic device specs and states
-- `plan44_core.protocol`: message building and reverse parsing
-- `plan44_core.session`: TCP session to a real plan44 bridge
-- `plan44_core.harness`: convenience wrapper for live tests and traces
-
-### Live test configuration
-
-Copy `devtools/.env.live.example` to `devtools/.env.live` and adjust the values.
-That file is intentionally not committed.
-
-Example:
-
-```bash
-cp devtools/.env.live.example devtools/.env.live
-python devtools/run_live_tests.py
-```
-
-All traffic is written as JSONL to the configured trace path. This makes it easy to inspect exactly what was sent to and received from the real bridge.
-
-### Running only the core unit tests
-
-```bash
-pytest tests/unit -vv
-```
-
-### Running live plan44 tests
-
-```bash
-python devtools/run_live_tests.py
-```
-
-These tests are skipped unless `P44_TEST_ENABLED=1` is set.
-
-
-## Pylance / Pyright
-
-This repository is structured to be friendlier to strict static analysis.
-
-Recommended VS Code settings:
-- Python interpreter: Python 3.14
-- Pylance type checking mode: `strict`
-
-A `pyrightconfig.json` file is included for local static analysis.
-
-Note: Home Assistant test tooling does not run properly on native Windows Python because Home Assistant imports Unix-specific modules such as `fcntl`. Run integration tests in WSL2, Docker, or Linux.
-
-
-## Test environments
-
-This repository supports two distinct test modes.
-
-### 1. Core and live P44 tests (clean, no Home Assistant plugin stack)
-
-Use this for protocol work and tests against a real plan44 bridge:
-
-```bash
-pip install -r requirements_test.txt
-pip install -e .
-python devtools/run_live_tests.py
-```
-
-This path intentionally disables pytest plugin autoload and explicitly enables only `pytest_asyncio`. That avoids unrelated Home Assistant pytest plugins and also avoids transitive `pkg_resources` compatibility issues from the HA test stack. Pytest documents `--disable-plugin-autoload` and explicit `-p ...` plugin loading as the supported way to control plugin loading.
-
-### 2. Home Assistant adapter tests
-
-Use this only when you want to run the HA integration tests under `tests/components`:
-
-```bash
-pip install -r requirements_ha_test.txt
-pytest -c pytest.ha.ini tests/components -vv
-```
-
-Some versions of the Home Assistant test stack still import `pkg_resources`. Setuptools officially deprecated `pkg_resources` long ago and removed it from current distributions as of `setuptools` 82.0.0, so any remaining use is upstream compatibility debt rather than a repository-local requirement.
-
-
-## Live test notes
-
-For `P44_TEST_HOST`, use a bare hostname or IP address without a URL scheme, for example `utgard.gothrist.ch` and not `https://utgard.gothrist.ch`. Live tests also fail when P44 returns protocol-level `status:error` responses.
-
-
-## P44 output mapping notes
-
-For compatibility with documented plan44 external-device examples, exported Home Assistant `switch` devices are currently registered on the P44 side as `output: "light"` and controlled with `0/100` channel values. This keeps the Home Assistant semantics as `switch` while using the documented P44 output channel model.
-
-
-## Confirmed live against a real plan44 bridge
-
-These mappings were verified against a real plan44 bridge using the live test harness:
-
-- `switch` -> P44 `output: "light"` with channel `0`
-- `light` -> P44 `output: "light"` with channel `0`
-- external devices require `uniqueid`
-
-This behavior matches the plan44 custom-device examples and the external device API compatibility notes in the German documentation.
-
-## Live test setup
-
-The repository separates live plan44 protocol tests from Home Assistant adapter tests:
-
-- `pytest.live.ini` runs the pure `plan44_core` live tests without the Home Assistant pytest plugin stack
-- `pytest.ha.ini` is reserved for Home Assistant adapter tests
-
-Recommended runtime for development and CI is Python 3.14.3.
-
-
-## Notes on P44 protocol mappings
-
-The live tests against a real P44 bridge have shown:
-
-- `switch` is best represented as `output: "light"` on the P44 external device API
-- `light` is also represented as `output: "light"`
-- `sensor` uses `protocol: "simple"` with a `sensors` array
-- `binary_sensor` is modeled as an input device with an `inputs` array and state updates via `message: "input"`
-
-These mappings are based on the German plan44 custom-device examples and are intentionally validated against a real P44 bridge before they are treated as stable defaults.
-
-
-## Architecture note
-
-`plan44_core` has a single source of truth under `custom_components/plan44_integration/plan44_core`.
-The editable package installation exposes that code for local tooling and CI, so the repository does not maintain a duplicated core implementation.
+This repository is still evolving. The most reliable source of truth for supported device mappings is the combination of:
+
+- the code in `plan44_core`
+- the live P44 tests under `tests/live`
+- the documentation in the `docs/` folder

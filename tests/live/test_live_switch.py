@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from plan44_core.models import SwitchState, VirtualDeviceSpec
 
 

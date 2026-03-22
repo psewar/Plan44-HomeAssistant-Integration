@@ -3,6 +3,7 @@
   "pythonVersion": "3.14",
   "include": [
     "custom_components",
+    "plan44_core",
     "devtools"
   ],
   "exclude": [
