@@ -187,6 +187,45 @@ class Plan44Coordinator:
             }
         return exports
 
+    async def async_sync_runtime_exports(self) -> None:
+        """Refresh runtime exports without tearing down the P44 connection."""
+        previous_exports = dict(getattr(self, "_exports_by_entity", {}))
+        self._refresh_exports()
+        await self.async_reinstall_listener()
+
+        added_or_changed: list[tuple[str, ExportRecord]] = []
+        for entity_id, cfg in self._exports_by_entity.items():
+            if previous_exports.get(entity_id) != cfg:
+                added_or_changed.append((entity_id, cfg))
+
+        if not added_or_changed:
+            return
+
+        await self.client.async_ensure_connected()
+        for entity_id, cfg in added_or_changed:
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                continue
+            unit_attr = state.attributes.get("unit_of_measurement")
+            unit = unit_attr if isinstance(unit_attr, str) else None
+            await self.client.async_register_device(
+                cfg["uid"],
+                cfg["name"],
+                cfg["kind"],
+                unit,
+            )
+            await self.async_forward_entity_state(entity_id, force=True)
+
+    async def async_handle_subentry_removed(self) -> None:
+        """Refresh runtime bookkeeping after subentry removal.
+
+        P44 external devices don't support clean in-place removal, so we keep the
+        active socket and only stop tracking removed entities locally. Existing
+        remote devices will disappear on the next reconnect or restart.
+        """
+        self._refresh_exports()
+        await self.async_reinstall_listener()
+
     async def async_create_virtual_device(
         self,
         entity_id: str,

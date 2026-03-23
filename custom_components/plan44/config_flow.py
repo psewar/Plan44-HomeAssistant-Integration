@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, cast
+from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -119,8 +119,8 @@ def _validate_virtual_device(
     exclude_entity_id: str | None = None,
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
-    entity_id = cast(str, user_input["entity_id"])
-    kind = cast(str, user_input["kind"])
+    entity_id = user_input["entity_id"]
+    kind = user_input["kind"]
 
     state = hass.states.get(entity_id)
     if state is None:
@@ -150,6 +150,29 @@ def _validate_virtual_device(
     return errors
 
 
+async def _async_schedule_runtime_sync(
+    hass: HomeAssistant,
+    entry_id: str,
+    removal: bool = False,
+) -> None:
+    await asyncio.sleep(0)
+    entry = next(
+        (
+            config_entry
+            for config_entry in hass.config_entries.async_entries(DOMAIN)
+            if config_entry.entry_id == entry_id
+        ),
+        None,
+    )
+    if entry is None or not hasattr(entry, "runtime_data"):
+        return
+    coordinator = entry.runtime_data.coordinator
+    if removal:
+        await coordinator.async_handle_subentry_removed()
+    else:
+        await coordinator.async_sync_runtime_exports()
+
+
 class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -162,15 +185,15 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await _validate_connection(
-                    cast(str, user_input[CONF_HOST]),
-                    cast(int, user_input[CONF_PORT]),
-                    cast(str, user_input[CONF_VDC_MODEL_NAME]),
+                    user_input[CONF_HOST],
+                    user_input[CONF_PORT],
+                    user_input[CONF_VDC_MODEL_NAME],
                 )
             except Exception:
                 errors["base"] = "cannot_connect"
             else:
-                host = cast(str, user_input[CONF_HOST])
-                port = cast(int, user_input[CONF_PORT])
+                host = user_input[CONF_HOST]
+                port = user_input[CONF_PORT]
                 await self.async_set_unique_id(f"{host}:{port}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
@@ -224,9 +247,9 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await _validate_connection(
-                    cast(str, user_input[CONF_HOST]),
-                    cast(int, user_input[CONF_PORT]),
-                    cast(str, user_input[CONF_VDC_MODEL_NAME]),
+                    user_input[CONF_HOST],
+                    user_input[CONF_PORT],
+                    user_input[CONF_VDC_MODEL_NAME],
                 )
             except Exception:
                 errors["base"] = "cannot_connect"
@@ -311,8 +334,11 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
                 user_input,
             )
             if not errors:
-                entity_id = cast(str, user_input["entity_id"])
-                name = cast(str, user_input.get("name") or entity_id)
+                entity_id = user_input["entity_id"]
+                name = user_input.get("name") or entity_id
+                self.hass.async_create_task(
+                    _async_schedule_runtime_sync(self.hass, entry.entry_id)
+                )
                 return self.async_create_entry(title=name, data=user_input)
 
         return self.async_show_form(
@@ -335,10 +361,10 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
                 self.hass,
                 entry,
                 user_input,
-                exclude_entity_id=cast(str, current.get("entity_id")),
+                exclude_entity_id=current.get("entity_id"),
             )
             if not errors:
-                name = cast(str, user_input.get("name") or user_input["entity_id"])
+                name = user_input.get("name") or user_input["entity_id"]
                 return self.async_update_reload_and_abort(
                     entry,
                     subentry=subentry,

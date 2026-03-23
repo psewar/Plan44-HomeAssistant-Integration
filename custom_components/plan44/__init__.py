@@ -146,6 +146,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+async def _async_handle_entry_updated(
+    hass: HomeAssistant,
+    entry: Plan44ConfigEntry,
+) -> None:
+    runtime = entry.runtime_data
+    await runtime.coordinator.async_sync_runtime_exports()
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
     store = Plan44Store(hass, entry)
     await store.async_load()
@@ -200,6 +208,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         store=store,
     )
 
+    entry.async_on_unload(entry.add_update_listener(_async_handle_entry_updated))
     entry.async_on_unload(
         lambda: _LOGGER.debug("Unloading plan44 entry %s", entry.entry_id)
     )
