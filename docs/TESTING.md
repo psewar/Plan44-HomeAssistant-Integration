@@ -90,3 +90,11 @@ Because of that, Home Assistant related tests should be run in:
 - Linux
 
 The live/core tests were separated to keep protocol development simpler.
+
+
+## Local repository checks
+
+Use the shell-specific helper at the repository root:
+
+- WSL / Linux / bash: `./precommit_check.sh`
+- PowerShell: `./precommit_check.ps1`

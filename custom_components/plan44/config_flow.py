@@ -7,6 +7,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry, ConfigSubentryFlow
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.selector import selector
 
 from .const import (
     CONF_AUTO_REPUBLISH,
@@ -25,6 +26,9 @@ from .const import (
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
     DOMAIN,
+    KIND_BINARY_SENSOR,
+    KIND_LIGHT,
+    KIND_SENSOR,
     KIND_SWITCH,
     SUBENTRY_TYPE_VIRTUAL_DEVICE,
     SUPPORTED_KINDS,
@@ -94,20 +98,45 @@ def _virtual_device_schema(current: ConfigDict | None = None) -> vol.Schema:
     current = current or {}
     return vol.Schema(
         {
-            vol.Required("entity_id", default=current.get("entity_id", "")): str,
+            vol.Required(
+                "entity_id",
+                default=current.get("entity_id", ""),
+            ): selector(
+                {
+                    "entity": {
+                        "multiple": False,
+                        "filter": [
+                            {"domain": KIND_SWITCH},
+                            {"domain": KIND_LIGHT},
+                            {"domain": KIND_SENSOR},
+                            {"domain": KIND_BINARY_SENSOR},
+                        ],
+                    }
+                }
+            ),
             vol.Required(
                 "kind",
                 default=current.get("kind", KIND_SWITCH),
-            ): vol.In(sorted(SUPPORTED_KINDS)),
-            vol.Optional("name", default=current.get("name", "")): str,
+            ): selector(
+                {
+                    "select": {
+                        "options": sorted(SUPPORTED_KINDS),
+                        "mode": "dropdown",
+                    }
+                }
+            ),
+            vol.Optional(
+                "name",
+                default=current.get("name", ""),
+            ): selector({"text": {}}),
             vol.Optional(
                 "room_hint",
                 default=current.get("room_hint", ""),
-            ): str,
+            ): selector({"text": {}}),
             vol.Optional(
                 "allow_reverse",
                 default=current.get("allow_reverse", True),
-            ): bool,
+            ): selector({"boolean": {}}),
         }
     )
 
