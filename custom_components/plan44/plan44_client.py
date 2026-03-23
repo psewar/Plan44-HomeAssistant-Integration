@@ -47,6 +47,7 @@ class Plan44Client:
         self._writer: asyncio.StreamWriter | None = None
         self._write_lock = asyncio.Lock()
         self._reader_task: asyncio.Task[None] | None = None
+        self._intentional_disconnect = False
 
     @property
     def is_connected(self) -> bool:
@@ -70,18 +71,24 @@ class Plan44Client:
             await self.async_connect()
 
     async def async_disconnect(self) -> None:
+        self._intentional_disconnect = True
         reader_task = self._reader_task
         if reader_task is not None:
             reader_task.cancel()
+            try:
+                await reader_task
+            except asyncio.CancelledError:
+                pass
             self._reader_task = None
 
         writer = self._writer
-        if writer is not None:
+        if writer is not None and not writer.is_closing():
             writer.close()
             await writer.wait_closed()
 
         self._reader = None
         self._writer = None
+        self._intentional_disconnect = False
 
     async def async_send(self, payload: JsonDict) -> None:
         async with self._write_lock:
@@ -133,6 +140,7 @@ class Plan44Client:
         return parse_incoming_message(msg, cast(DeviceKind, kind))
 
     async def _async_reader_loop(self) -> None:
+        self._intentional_disconnect = False
         reader = self._reader
         if reader is None:
             raise RuntimeError("plan44 client reader is unavailable")
@@ -174,4 +182,5 @@ class Plan44Client:
                 except Exception:
                     pass
             self._writer = None
-            await self._disconnect_callback()
+            if not self._intentional_disconnect:
+                await self._disconnect_callback()

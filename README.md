@@ -119,3 +119,18 @@ This repository is still evolving. The most reliable source of truth for support
 - the code in `plan44_core`
 - the live P44 tests under `tests/live`
 - the documentation in the `docs/` folder
+
+
+## Repository checks
+
+Before committing, run one of these from the repository root:
+
+```bash
+./precommit_check.sh
+```
+
+On PowerShell:
+
+```powershell
+./precommit_check.ps1
+```
