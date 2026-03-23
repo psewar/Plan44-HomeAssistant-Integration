@@ -21,13 +21,13 @@ from .const import (
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
     DOMAIN,
+    Plan44ConfigEntry,
+    Plan44RuntimeData,
     SERVICE_CREATE_VIRTUAL_DEVICE,
     SERVICE_PUSH_ENTITY_STATE,
     SERVICE_REMOVE_VIRTUAL_DEVICE,
     SERVICE_REPUBLISH_VIRTUAL_DEVICES,
     SUPPORTED_KINDS,
-    Plan44ConfigEntry,
-    Plan44RuntimeData,
 )
 from .coordinator import Plan44Coordinator
 from .plan44_client import Plan44Client
@@ -71,11 +71,14 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall) -> Plan44ConfigEntry:
         for entry in entries:
             if entry.entry_id == requested_entry_id:
                 return cast(Plan44ConfigEntry, entry)
-        raise HomeAssistantError(f"Unknown plan44 entry_id: {requested_entry_id}")
+        raise HomeAssistantError(
+            f"Unknown plan44 entry_id: {requested_entry_id}"
+        )
 
     if len(entries) > 1:
         raise HomeAssistantError(
-            "Multiple plan44 entries configured; specify entry_id in the service call"
+            "Multiple plan44 entries configured; "
+            "specify entry_id in the service call"
         )
 
     return cast(Plan44ConfigEntry, entries[0])

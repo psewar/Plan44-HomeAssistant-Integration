@@ -163,7 +163,8 @@ def light_state_to_p44_value(state: LightState) -> int:
     if state.brightness is None:
         return P44_MAX_CHANNEL_VALUE
     scaled = round(
-        (int(state.brightness) / LIGHT_MAX_BRIGHTNESS) * P44_MAX_CHANNEL_VALUE
+        (int(state.brightness) / LIGHT_MAX_BRIGHTNESS)
+        * P44_MAX_CHANNEL_VALUE
     )
     return max(LIGHT_ON_THRESHOLD, min(P44_MAX_CHANNEL_VALUE, scaled))
 

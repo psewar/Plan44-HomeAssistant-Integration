@@ -12,6 +12,15 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
 
+from .plan44_core.models import (
+    BinarySensorState,
+    DeviceCommand,
+    DeviceState,
+    LightState,
+    SensorState,
+    SwitchState,
+)
+
 from .const import (
     ATTR_ALLOW_REVERSE,
     ATTR_ENTITY_ID,
@@ -28,18 +37,10 @@ from .const import (
     KIND_SWITCH,
     ORIGIN_HA,
     ORIGIN_P44,
-    REVERSE_COOLDOWN_SECONDS,
     Plan44ConfigEntry,
+    REVERSE_COOLDOWN_SECONDS,
 )
 from .plan44_client import Plan44Client
-from .plan44_core.models import (
-    BinarySensorState,
-    DeviceCommand,
-    DeviceState,
-    LightState,
-    SensorState,
-    SwitchState,
-)
 from .store import ExportRecord, Plan44Store
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,7 +111,9 @@ class Plan44Coordinator:
         reconnect_task = self._reconnect_task
         if reconnect_task is not None and not reconnect_task.done():
             return
-        self._reconnect_task = self.hass.async_create_task(self._async_reconnect_loop())
+        self._reconnect_task = self.hass.async_create_task(
+            self._async_reconnect_loop()
+        )
 
     async def _async_reconnect_loop(self) -> None:
         while True:
@@ -140,7 +143,9 @@ class Plan44Coordinator:
                     entity_id = raw_entity_id
             if entity_id is None:
                 return
-            self.hass.async_create_task(self.async_forward_entity_state(entity_id))
+            self.hass.async_create_task(
+                self.async_forward_entity_state(entity_id)
+            )
 
         self._tracked_unsubs.append(
             async_track_state_change_event(self.hass, tracked, _on_state_change)
@@ -160,7 +165,8 @@ class Plan44Coordinator:
             exports[entity_id] = cfg
         self._exports_by_entity = exports
         self._entity_by_uid = {
-            cfg["uid"]: entity_id for entity_id, cfg in exports.items()
+            cfg["uid"]: entity_id
+            for entity_id, cfg in exports.items()
         }
 
     def _iter_subentry_exports(self) -> dict[str, ExportRecord]:
@@ -381,7 +387,11 @@ class Plan44Coordinator:
     def _parse_csv(value: str | list[str]) -> set[str]:
         if isinstance(value, list):
             return {item.strip().lower() for item in value if item.strip()}
-        return {item.strip().lower() for item in value.split(",") if item.strip()}
+        return {
+            item.strip().lower()
+            for item in value.split(",")
+            if item.strip()
+        }
 
     @staticmethod
     def _state_to_core(kind: str, state: State) -> DeviceState:

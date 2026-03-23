@@ -144,7 +144,7 @@ def _validate_virtual_device(
     if kind == "sensor":
         try:
             float(state.state)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             errors["base"] = "sensor_not_numeric"
 
     return errors
@@ -271,7 +271,7 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_get_options_flow(
         config_entry: ConfigEntry,
-    ) -> Plan44OptionsFlow:
+    ) -> "Plan44OptionsFlow":
         return Plan44OptionsFlow(config_entry)
 
 
