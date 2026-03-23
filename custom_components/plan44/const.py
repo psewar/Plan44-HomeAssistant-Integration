@@ -26,9 +26,7 @@ DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"
 DEFAULT_AUTO_REPUBLISH = True
 DEFAULT_REVERSE_ENABLED = True
 DEFAULT_RECONNECT_INTERVAL = 10
-DEFAULT_BLOCKLIST_INTEGRATIONS = (
-    "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
-)
+DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 
 SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"
