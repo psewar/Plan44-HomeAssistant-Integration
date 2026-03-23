@@ -5,7 +5,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry, ConfigSubentryFlow
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
@@ -132,7 +132,7 @@ def _validate_virtual_device(
         errors["base"] = "kind_mismatch"
         return errors
 
-    for subentry in getattr(entry, "subentries", ()):
+    for subentry in getattr(entry, "subentries", {}).values():
         data = getattr(subentry, "data", None)
         if not isinstance(data, dict):
             continue
@@ -155,7 +155,7 @@ async def _async_schedule_runtime_sync(
     entry_id: str,
     removal: bool = False,
 ) -> None:
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.2)
     entry = next(
         (
             config_entry
@@ -171,6 +171,22 @@ async def _async_schedule_runtime_sync(
         await coordinator.async_handle_subentry_removed()
     else:
         await coordinator.async_sync_runtime_exports()
+
+
+def _update_subentry_runtime(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    subentry: ConfigSubentry,
+    data: ConfigDict,
+    title: str,
+) -> None:
+    hass.config_entries.async_update_subentry(
+        entry,
+        subentry,
+        data=data,
+        title=title,
+    )
+    hass.async_create_task(_async_schedule_runtime_sync(hass, entry.entry_id))
 
 
 class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -339,7 +355,7 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
                 self.hass.async_create_task(
                     _async_schedule_runtime_sync(self.hass, entry.entry_id)
                 )
-                return self.async_create_entry(title=name, data=user_input)
+                return self.async_create_subentry(title=name, data=user_input)
 
         return self.async_show_form(
             step_id="user",
@@ -365,12 +381,14 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
             )
             if not errors:
                 name = user_input.get("name") or user_input["entity_id"]
-                return self.async_update_reload_and_abort(
+                _update_subentry_runtime(
+                    self.hass,
                     entry,
-                    subentry=subentry,
-                    data_updates=user_input,
-                    title=name,
+                    subentry,
+                    user_input,
+                    name,
                 )
+                return self.async_abort(reason="reconfigure_successful")
 
         return self.async_show_form(
             step_id="reconfigure",

@@ -165,7 +165,7 @@ class Plan44Coordinator:
 
     def _iter_subentry_exports(self) -> dict[str, ExportRecord]:
         exports: dict[str, ExportRecord] = {}
-        for subentry in getattr(self.entry, "subentries", ()):
+        for subentry in getattr(self.entry, "subentries", {}).values():
             data = getattr(subentry, "data", None)
             if not isinstance(data, Mapping):
                 continue
