@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 from homeassistant.components.light import ATTR_BRIGHTNESS
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
@@ -66,6 +67,7 @@ class Plan44Coordinator:
         self._last_origin_by_entity: dict[str, str] = {}
         self._last_write_ts_by_entity: dict[str, float] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
+        self._startup_sync_unsub: Callable[[], None] | None = None
 
         reconnect_value = entry.options.get(
             CONF_RECONNECT_INTERVAL,
@@ -90,14 +92,31 @@ class Plan44Coordinator:
     async def async_initialize(self) -> None:
         self._refresh_exports()
         await self.client.async_connect()
-        if self.auto_republish:
-            await self.async_republish_virtual_devices()
         self._install_state_listener()
+        if self.auto_republish:
+            if self.hass.is_running:
+                await self.async_republish_virtual_devices()
+            else:
+
+                @callback
+                def _on_started(_event: Event[Any]) -> None:
+                    self._startup_sync_unsub = None
+                    self.hass.async_create_task(self.async_republish_virtual_devices())
+
+                self._startup_sync_unsub = self.hass.bus.async_listen_once(
+                    EVENT_HOMEASSISTANT_STARTED,
+                    _on_started,
+                )
 
     async def async_shutdown(self) -> None:
         for unsub in self._tracked_unsubs:
             unsub()
         self._tracked_unsubs.clear()
+
+        startup_sync_unsub = self._startup_sync_unsub
+        if startup_sync_unsub is not None:
+            startup_sync_unsub()
+            self._startup_sync_unsub = None
 
         reconnect_task = self._reconnect_task
         if reconnect_task is not None:
