@@ -45,6 +45,9 @@ from .store import ExportRecord, Plan44Store
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_RECONNECT_ATTEMPTS = 10
+MAX_RECONNECT_DELAY_SECONDS = 300
+
 
 class Plan44Coordinator:
     def __init__(
@@ -132,17 +135,39 @@ class Plan44Coordinator:
         self._reconnect_task = self.hass.async_create_task(self._async_reconnect_loop())
 
     async def _async_reconnect_loop(self) -> None:
-        while True:
+        delay = max(1, self._reconnect_interval)
+        for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
             try:
                 await self.client.async_connect()
                 if self.auto_republish:
                     await self.async_republish_virtual_devices()
+                _LOGGER.info(
+                    "Reconnected to plan44 on attempt %s/%s",
+                    attempt,
+                    MAX_RECONNECT_ATTEMPTS,
+                )
                 return
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                _LOGGER.exception("Reconnect to plan44 failed")
-                await asyncio.sleep(self._reconnect_interval)
+            except Exception as err:
+                if attempt >= MAX_RECONNECT_ATTEMPTS:
+                    _LOGGER.error(
+                        "Failed to reconnect to plan44 after %s attempts: %s",
+                        MAX_RECONNECT_ATTEMPTS,
+                        err,
+                    )
+                    return
+
+                _LOGGER.warning(
+                    "Reconnect to plan44 failed on attempt %s/%s: %s. "
+                    "Retrying in %s seconds",
+                    attempt,
+                    MAX_RECONNECT_ATTEMPTS,
+                    err,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, MAX_RECONNECT_DELAY_SECONDS)
 
     def _install_state_listener(self) -> None:
         tracked = list(self._exports_by_entity)

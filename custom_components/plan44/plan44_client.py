@@ -170,6 +170,12 @@ class Plan44Client:
                 await self._incoming_callback(msg)
         except asyncio.CancelledError:
             raise
+        except ConnectionResetError as err:
+            _LOGGER.warning("plan44 connection reset by peer: %s", err)
+        except BrokenPipeError as err:
+            _LOGGER.warning("plan44 broken pipe: %s", err)
+        except OSError as err:
+            _LOGGER.warning("plan44 socket error: %s", err)
         except Exception:
             _LOGGER.exception("Unexpected error in plan44 reader loop")
         finally:
