@@ -26,9 +26,6 @@ from .const import (
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
     DOMAIN,
-    KIND_BINARY_SENSOR,
-    KIND_LIGHT,
-    KIND_SENSOR,
     KIND_SWITCH,
     SUBENTRY_TYPE_VIRTUAL_DEVICE,
     SUPPORTED_KINDS,
@@ -94,7 +91,29 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
     )
 
 
-def _virtual_device_schema(current: ConfigDict | None = None) -> vol.Schema:
+def _virtual_device_kind_schema(current: ConfigDict | None = None) -> vol.Schema:
+    current = current or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                "kind",
+                default=current.get("kind", KIND_SWITCH),
+            ): selector(
+                {
+                    "select": {
+                        "options": sorted(SUPPORTED_KINDS),
+                        "mode": "dropdown",
+                    }
+                }
+            ),
+        }
+    )
+
+
+def _virtual_device_details_schema(
+    kind: str,
+    current: ConfigDict | None = None,
+) -> vol.Schema:
     current = current or {}
     return vol.Schema(
         {
@@ -105,23 +124,7 @@ def _virtual_device_schema(current: ConfigDict | None = None) -> vol.Schema:
                 {
                     "entity": {
                         "multiple": False,
-                        "filter": [
-                            {"domain": KIND_SWITCH},
-                            {"domain": KIND_LIGHT},
-                            {"domain": KIND_SENSOR},
-                            {"domain": KIND_BINARY_SENSOR},
-                        ],
-                    }
-                }
-            ),
-            vol.Required(
-                "kind",
-                default=current.get("kind", KIND_SWITCH),
-            ): selector(
-                {
-                    "select": {
-                        "options": sorted(SUPPORTED_KINDS),
-                        "mode": "dropdown",
+                        "filter": [{"domain": kind}],
                     }
                 }
             ),
@@ -365,30 +368,55 @@ class Plan44OptionsFlow(config_entries.OptionsFlow):
 
 
 class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
+    def __init__(self) -> None:
+        self._selected_kind: str | None = None
+
     async def async_step_user(
+        self,
+        user_input: ConfigDict | None = None,
+    ) -> Any:
+        if user_input is not None:
+            self._selected_kind = user_input["kind"]
+            return await self.async_step_details()
+
+        current: ConfigDict = {}
+        if self._selected_kind is not None:
+            current["kind"] = self._selected_kind
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_virtual_device_kind_schema(current),
+            errors={},
+        )
+
+    async def async_step_details(
         self,
         user_input: ConfigDict | None = None,
     ) -> Any:
         entry = self._get_entry()
         errors: dict[str, str] = {}
+        kind = self._selected_kind or KIND_SWITCH
 
         if user_input is not None:
+            payload = {**user_input, "kind": kind}
             errors = _validate_virtual_device(
                 self.hass,
                 entry,
-                user_input,
+                payload,
             )
             if not errors:
-                entity_id = user_input["entity_id"]
-                name = user_input.get("name") or entity_id
+                entity_id = payload["entity_id"]
+                name = payload.get("name") or entity_id
                 self.hass.async_create_task(
                     _async_schedule_runtime_sync(self.hass, entry.entry_id)
                 )
-                return self.async_create_entry(title=name, data=user_input)
+                return self.async_create_entry(title=name, data=payload)
 
+        current: ConfigDict = {"kind": kind}
+        if user_input is not None:
+            current.update(user_input)
         return self.async_show_form(
-            step_id="user",
-            data_schema=_virtual_device_schema(user_input),
+            step_id="details",
+            data_schema=_virtual_device_details_schema(kind, current),
             errors=errors,
         )
 
@@ -421,6 +449,9 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_virtual_device_schema(current),
+            data_schema=_virtual_device_details_schema(
+                current.get("kind", KIND_SWITCH),
+                current,
+            ),
             errors=errors,
         )

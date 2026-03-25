@@ -8,29 +8,25 @@ This page explains how to create Home Assistant entities that are good sources f
 
 That means you first need a suitable Home Assistant entity, and then you export it.
 
-## Recommended approach: dedicated helper/package file
+## Recommended approach: dedicated Home Assistant package file
 
-If you want to manage several virtual devices, create a dedicated file for them.
+Do **not** add helper or template YAML files to the `plan44` integration repository.
 
-Example:
+Instead, create a dedicated YAML file in your **Home Assistant configuration directory** and keep all helper entities and template entities for `plan44` there. Home Assistant officially recommends packages for bundling related configuration, and documents `homeassistant: packages: !include_dir_named packages` as the convenient approach for this. The package docs also state that this method loads YAML files in the packages folder and its subfolders. citeturn324374view0
 
-```text
-packages/plan44_virtual_devices.yaml
-```
-
-or, if you want to keep local-only configuration out of version control:
+Recommended file name:
 
 ```text
-packages/local/plan44_virtual_devices.yaml
+/config/packages/plan44_virtual_devices.yaml
 ```
 
-Suggested `.gitignore` entry:
+If you prefer a grouped structure, this is also fine:
 
-```gitignore
-packages/local/
+```text
+/config/packages/plan44/virtual_devices.yaml
 ```
 
-This makes it much easier to keep track of which entities exist only to be exposed through plan44.
+See [Home Assistant YAML structure for virtual devices](HOME_ASSISTANT_YAML.md) for concrete include examples and directory layouts.
 
 ## What to use as source entities
 
@@ -85,8 +81,9 @@ For `light`, the integration expects an actual `light` domain entity.
 
 For numeric values, a clean pattern is:
 
-- create an `input_number`
+- create an `input_number` helper
 - expose it as a template sensor
+- add the resulting `sensor.*` entity in the `plan44` UI
 
 Example:
 
@@ -97,14 +94,23 @@ input_number:
     min: 0
     max: 50
     step: 0.1
+    mode: box
 
 template:
   - sensor:
       - name: "Plan44 Test Temperature"
         unique_id: plan44_test_temperature
         unit_of_measurement: "°C"
-        state: "{{ states('input_number.plan44_test_temperature_raw') }}"
+        device_class: temperature
+        state_class: measurement
+        state: "{{ states('input_number.plan44_test_temperature_raw') | float(0) }}"
 ```
+
+In the UI, select the resulting entity:
+
+- `sensor.plan44_test_temperature`
+
+Do not select the raw helper `input_number.plan44_test_temperature_raw`, because `plan44` only accepts numeric entities from the `sensor` domain for the virtual device type `sensor`.
 
 ### `binary_sensor`
 
@@ -124,9 +130,20 @@ template:
         state: "{{ is_state('input_boolean.plan44_test_contact_state', 'on') }}"
 ```
 
-## Publishing a virtual device to plan44
+## Adding the virtual device to `plan44`
 
-Once the Home Assistant entity exists, call the service:
+Once the Home Assistant entity exists, the preferred approach is to add it from the `plan44` integration UI:
+
+1. Open **Settings -> Devices & Services**
+2. Open **plan44**
+3. Choose **Add virtual device**
+4. Select the source entity from the entity selector
+5. Choose the matching kind
+6. Save
+
+The legacy services below still work, but they are now the secondary path.
+
+## Legacy service examples
 
 ### Switch example
 
@@ -217,6 +234,11 @@ For `sensor` and `binary_sensor`, the main use case is sending Home Assistant st
 
 
 ## Recommended management model
+
+- keep source helpers/entities in Home Assistant YAML or helpers
+- keep them grouped in a dedicated `plan44` package file
+- manage exported virtual devices primarily from the `plan44` integration UI
+- keep the legacy services for automation or migration use cases
 
 As of the current UI design, virtual devices should primarily be managed directly from the Home Assistant integration UI using **config subentries**:
 

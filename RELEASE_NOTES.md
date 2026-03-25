@@ -47,3 +47,6 @@ Removed generated cache directories from the archive:
 - Updated editable packaging to expose `plan44_core` from the integration package directory.
 - Added `tests/conftest.py` to make local test imports resolve consistently without duplicate code.
 - Replaced PEP 695 `type` aliases with `TypeAlias` for broader formatter/tool compatibility.
+
+- Added two-step virtual-device UI flow: choose type first, then select a source entity filtered to that type.
+- Clarified README/Home Assistant YAML docs and improved the numeric sensor example.

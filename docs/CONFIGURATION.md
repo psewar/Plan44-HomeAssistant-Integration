@@ -61,19 +61,17 @@ data:
   allow_reverse: true
 ```
 
-## Recommended Home Assistant structure for test and virtual devices
+## Recommended Home Assistant structure for virtual devices
 
-If you plan to create multiple virtual devices, it is a good idea to keep their helper entities in a dedicated Home Assistant config file or package.
+If you plan to create multiple virtual devices, Home Assistant packages are the cleanest documented way to keep all related helper/template entities together. Home Assistant documents packages under `homeassistant: packages:` and explicitly recommends a `packages` folder loaded with `!include_dir_named packages`. citeturn324374view0
 
-Recommended approaches:
+Recommended approach:
 
-- a dedicated package file such as `packages/plan44_virtual_devices.yaml`
-- a local file such as `packages/local/plan44_virtual_devices.yaml`
-- UI-created helpers with a consistent naming convention like `input_boolean.plan44_*`
+- create `/config/packages/plan44_virtual_devices.yaml` in your Home Assistant configuration directory
+- put all `plan44` helper/template entities there
+- then add the resulting entities from the `plan44` integration UI
 
-A dedicated file keeps the setup understandable and makes it easier to see which Home Assistant entities are intended for export to plan44.
-
-For concrete examples, see [Creating and managing virtual devices](VIRTUAL_DEVICES.md).
+For detailed examples and sample `configuration.yaml` includes, see [Home Assistant YAML structure for virtual devices](HOME_ASSISTANT_YAML.md).
 
 
 ## UI-managed virtual devices
