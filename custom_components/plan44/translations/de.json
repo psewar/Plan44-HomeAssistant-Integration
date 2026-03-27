@@ -67,47 +67,20 @@
           "title": "Virtuelles Gerät konfigurieren",
           "description": "Wählen Sie die Home Assistant-Entität und konfigurieren Sie Details.",
           "data": {
-            "entity_id": {
-              "name": "Quell-Entität",
-              "description": "Die Home Assistant-Entität, die zu plan44 exportiert werden soll"
-            },
-            "name": {
-              "name": "Anzeigename",
-              "description": "Optionaler benutzerdefinierter Name für das virtuelle Gerät (standardmäßig Entitäts-ID)"
-            },
-            "room_hint": {
-              "name": "Raumhinweis",
-              "description": "Optionaler Raumname für die Gruppierung von Geräten"
-            },
-            "allow_reverse": {
-              "name": "Umgekehrte Steuerung erlauben",
-              "description": "Steuerung der Home Assistant-Entität von plan44 aus aktivieren"
-            }
+            "entity_id": "Quell-Entität",
+            "name": "Anzeigename",
+            "room_hint": "Raumhinweis",
+            "allow_reverse": "Umgekehrte Steuerung erlauben"
           }
         },
         "reconfigure": {
           "title": "Virtuelles Gerät bearbeiten",
           "data": {
-            "entity_id": {
-              "name": "Quell-Entität",
-              "description": "Die Home Assistant-Entität, die zu plan44 exportiert werden soll"
-            },
-            "kind": {
-              "name": "Virtueller Gerätetyp",
-              "description": "Wählen Sie den Gerätetyp (Schalter, Licht, Sensor oder binärer Sensor)"
-            },
-            "name": {
-              "name": "Anzeigename",
-              "description": "Optionaler benutzerdefinierter Name für das virtuelle Gerät (standardmäßig Entitäts-ID)"
-            },
-            "room_hint": {
-              "name": "Raumhinweis",
-              "description": "Optionaler Raumname für die Gruppierung von Geräten"
-            },
-            "allow_reverse": {
-              "name": "Umgekehrte Steuerung erlauben",
-              "description": "Steuerung der Home Assistant-Entität von plan44 aus aktivieren"
-            }
+            "entity_id": "Quell-Entität",
+            "kind": "Virtueller Gerätetyp",
+            "name": "Anzeigename",
+            "room_hint": "Raumhinweis",
+            "allow_reverse": "Umgekehrte Steuerung erlauben"
           }
         }
       }

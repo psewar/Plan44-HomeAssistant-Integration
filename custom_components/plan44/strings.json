@@ -67,47 +67,20 @@
           "title": "Configure virtual device",
           "description": "Select the Home Assistant entity and configure details.",
           "data": {
-            "entity_id": {
-              "name": "Source entity",
-              "description": "The Home Assistant entity to export to plan44"
-            },
-            "name": {
-              "name": "Display name",
-              "description": "Optional custom name for the virtual device (defaults to entity ID)"
-            },
-            "room_hint": {
-              "name": "Room hint",
-              "description": "Optional room name for grouping devices"
-            },
-            "allow_reverse": {
-              "name": "Allow reverse control",
-              "description": "Enable control of the Home Assistant entity from plan44"
-            }
+            "entity_id": "Source entity",
+            "name": "Display name",
+            "room_hint": "Room hint",
+            "allow_reverse": "Allow reverse control"
           }
         },
         "reconfigure": {
           "title": "Edit virtual device",
           "data": {
-            "entity_id": {
-              "name": "Source entity",
-              "description": "The Home Assistant entity to export to plan44"
-            },
-            "kind": {
-              "name": "Virtual device type",
-              "description": "Select the type of device (switch, light, sensor, or binary sensor)"
-            },
-            "name": {
-              "name": "Display name",
-              "description": "Optional custom name for the virtual device (defaults to entity ID)"
-            },
-            "room_hint": {
-              "name": "Room hint",
-              "description": "Optional room name for grouping devices"
-            },
-            "allow_reverse": {
-              "name": "Allow reverse control",
-              "description": "Enable control of the Home Assistant entity from plan44"
-            }
+            "entity_id": "Source entity",
+            "kind": "Virtual device type",
+            "name": "Display name",
+            "room_hint": "Room hint",
+            "allow_reverse": "Allow reverse control"
           }
         }
       }
