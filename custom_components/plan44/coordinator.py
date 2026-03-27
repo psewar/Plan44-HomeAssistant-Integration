@@ -356,6 +356,8 @@ class Plan44Coordinator:
         await self.client.async_ensure_connected()
 
         core_state = self._state_to_core(cfg["kind"], state)
+        if core_state is None:
+            return  # Skip forwarding if state conversion failed
         await self.client.async_push_state_messages(cfg["uid"], core_state)
 
         self._last_origin_by_entity[entity_id] = ORIGIN_HA
