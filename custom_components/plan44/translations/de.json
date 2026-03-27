@@ -1,0 +1,122 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "plan44",
+        "description": "Konfigurieren Sie die Verbindung zu plan44.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "vdc_model_name": "VDC-Modellname",
+          "auto_republish": "Virtuelle Geräte beim Start automatisch neu veröffentlichen",
+          "reverse_enabled": "Umgekehrte Steuerung von plan44 zu Home Assistant aktivieren",
+          "reconnect_interval": "Wiederverbindungsintervall in Sekunden",
+          "blocklist_integrations": "Blockierte Integrationen (durch Komma getrennt)",
+          "blocklist_entity_id_prefixes": "Blockierte entity_id-Präfixe (durch Komma getrennt)"
+        }
+      },
+      "reconfigure": {
+        "title": "Plan44-Verbindung neu konfigurieren",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "vdc_model_name": "VDC-Modellname"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zu plan44 fehlgeschlagen",
+      "entity_not_found": "Die ausgewählte Entität wurde nicht gefunden.",
+      "kind_mismatch": "Die Domäne der ausgewählten Entität stimmt nicht mit dem gewählten virtuellen Gerätetyp überein.",
+      "sensor_not_numeric": "Der ausgewählte Sensor hat derzeit keinen numerischen Zustand.",
+      "already_configured": "Ein virtuelles Gerät für diese Entität existiert bereits."
+    },
+    "abort": {
+      "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Plan44-Optionen",
+        "data": {
+          "auto_republish": "Virtuelle Geräte beim Start automatisch neu veröffentlichen",
+          "reverse_enabled": "Umgekehrte Steuerung von plan44 zu Home Assistant aktivieren",
+          "reconnect_interval": "Wiederverbindungsintervall in Sekunden",
+          "blocklist_integrations": "Blockierte Integrationen (durch Komma getrennt)",
+          "blocklist_entity_id_prefixes": "Blockierte entity_id-Präfixe (durch Komma getrennt)"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "virtual_device": {
+      "flow_title": "Virtuelles Gerät",
+      "step": {
+        "user": {
+          "title": "Virtuellen Gerätetyp auswählen",
+          "description": "Wählen Sie den Typ des hinzuzufügenden virtuellen Geräts.",
+          "data": {
+            "kind": {
+              "name": "Virtueller Gerätetyp",
+              "description": "Wählen Sie den Gerätetyp (Schalter, Licht, Sensor oder binärer Sensor)"
+            }
+          }
+        },
+        "entity": {
+          "title": "Virtuelles Gerät konfigurieren",
+          "description": "Wählen Sie die Home Assistant-Entität und konfigurieren Sie Details.",
+          "data": {
+            "entity_id": {
+              "name": "Quell-Entität",
+              "description": "Die Home Assistant-Entität, die zu plan44 exportiert werden soll"
+            },
+            "name": {
+              "name": "Anzeigename",
+              "description": "Optionaler benutzerdefinierter Name für das virtuelle Gerät (standardmäßig Entitäts-ID)"
+            },
+            "room_hint": {
+              "name": "Raumhinweis",
+              "description": "Optionaler Raumname für die Gruppierung von Geräten"
+            },
+            "allow_reverse": {
+              "name": "Umgekehrte Steuerung erlauben",
+              "description": "Steuerung der Home Assistant-Entität von plan44 aus aktivieren"
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Virtuelles Gerät bearbeiten",
+          "data": {
+            "entity_id": {
+              "name": "Quell-Entität",
+              "description": "Die Home Assistant-Entität, die zu plan44 exportiert werden soll"
+            },
+            "kind": {
+              "name": "Virtueller Gerätetyp",
+              "description": "Wählen Sie den Gerätetyp (Schalter, Licht, Sensor oder binärer Sensor)"
+            },
+            "name": {
+              "name": "Anzeigename",
+              "description": "Optionaler benutzerdefinierter Name für das virtuelle Gerät (standardmäßig Entitäts-ID)"
+            },
+            "room_hint": {
+              "name": "Raumhinweis",
+              "description": "Optionaler Raumname für die Gruppierung von Geräten"
+            },
+            "allow_reverse": {
+              "name": "Umgekehrte Steuerung erlauben",
+              "description": "Steuerung der Home Assistant-Entität von plan44 aus aktivieren"
+            }
+          }
+        }
+      }
+    }
+  },
+  "subentries": {
+    "virtual_device": {
+      "name": "Virtuelles Gerät",
+      "description": "Fügen Sie ein virtuelles Gerät hinzu, um eine Home Assistant-Entität zu plan44 für Fernsteuerung und Überwachung zu exportieren."
+    }
+  }
+}

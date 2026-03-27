@@ -54,27 +54,69 @@
       "flow_title": "Virtual device",
       "step": {
         "user": {
-          "title": "Add virtual device",
-          "description": "Create a virtual device managed directly from the UI.",
+          "title": "Select virtual device type",
+          "description": "Choose the type of virtual device to add.",
           "data": {
-            "entity_id": "Source entity",
-            "kind": "Virtual device type",
-            "name": "Display name",
-            "room_hint": "Room hint",
-            "allow_reverse": "Allow reverse control from plan44 to Home Assistant"
+            "kind": {
+              "name": "Virtual device type",
+              "description": "Select the type of device (switch, light, sensor, or binary sensor)"
+            }
+          }
+        },
+        "entity": {
+          "title": "Configure virtual device",
+          "description": "Select the Home Assistant entity and configure details.",
+          "data": {
+            "entity_id": {
+              "name": "Source entity",
+              "description": "The Home Assistant entity to export to plan44"
+            },
+            "name": {
+              "name": "Display name",
+              "description": "Optional custom name for the virtual device (defaults to entity ID)"
+            },
+            "room_hint": {
+              "name": "Room hint",
+              "description": "Optional room name for grouping devices"
+            },
+            "allow_reverse": {
+              "name": "Allow reverse control",
+              "description": "Enable control of the Home Assistant entity from plan44"
+            }
           }
         },
         "reconfigure": {
           "title": "Edit virtual device",
           "data": {
-            "entity_id": "Source entity",
-            "kind": "Virtual device type",
-            "name": "Display name",
-            "room_hint": "Room hint",
-            "allow_reverse": "Allow reverse control from plan44 to Home Assistant"
+            "entity_id": {
+              "name": "Source entity",
+              "description": "The Home Assistant entity to export to plan44"
+            },
+            "kind": {
+              "name": "Virtual device type",
+              "description": "Select the type of device (switch, light, sensor, or binary sensor)"
+            },
+            "name": {
+              "name": "Display name",
+              "description": "Optional custom name for the virtual device (defaults to entity ID)"
+            },
+            "room_hint": {
+              "name": "Room hint",
+              "description": "Optional room name for grouping devices"
+            },
+            "allow_reverse": {
+              "name": "Allow reverse control",
+              "description": "Enable control of the Home Assistant entity from plan44"
+            }
           }
         }
       }
+    }
+  },
+  "subentries": {
+    "virtual_device": {
+      "name": "Virtual Device",
+      "description": "Add a virtual device to export a Home Assistant entity to plan44 for remote control and monitoring."
     }
   }
 }
