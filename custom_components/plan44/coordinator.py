@@ -469,7 +469,7 @@ class Plan44Coordinator:
         return {item.strip().lower() for item in value.split(",") if item.strip()}
 
     @staticmethod
-    def _state_to_core(kind: str, state: State) -> DeviceState:
+    def _state_to_core(kind: str, state: State) -> DeviceState | None:
         attributes = state.attributes
 
         if kind == KIND_SWITCH:
@@ -489,4 +489,4 @@ class Plan44Coordinator:
             return BinarySensorState(is_on=state.state.lower() == "on")
         if kind == KIND_SENSOR:
             return SensorState(numeric_value=float(state.state))
-        raise HomeAssistantError(f"Unsupported export kind: {kind}")
+        return None
