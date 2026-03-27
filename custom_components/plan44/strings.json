@@ -54,19 +54,10 @@
       "flow_title": "Virtual device",
       "step": {
         "user": {
-          "title": "Select virtual device type",
-          "description": "Choose the type of virtual device to add.",
+          "title": "Add virtual device",
+          "description": "Create a virtual device managed directly from the UI.",
           "data": {
-            "kind": {
-              "name": "Virtual device type",
-              "description": "Select the type of device (switch, light, sensor, or binary sensor)"
-            }
-          }
-        },
-        "entity": {
-          "title": "Configure virtual device",
-          "description": "Select the Home Assistant entity and configure details.",
-          "data": {
+            "kind": "Virtual device type",
             "entity_id": "Source entity",
             "name": "Display name",
             "room_hint": "Room hint",

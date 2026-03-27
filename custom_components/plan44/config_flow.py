@@ -94,15 +94,13 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
     )
 
 
-def _virtual_device_form_schema(
-    current: ConfigDict | None = None,
-    kind: str | None = None,
-) -> vol.Schema:
+def _virtual_device_form_schema(current: ConfigDict | None = None) -> vol.Schema:
     current = current or {}
-    # Filter entity selector based on provided kind (for Step 2); show all if none
+    # Filter entity selector based on selected kind (if provided in current)
+    selected_kind = current.get("kind")
     entity_filter = (
-        [{"domain": kind}]
-        if kind
+        [{"domain": selected_kind}]
+        if selected_kind
         else [
             {"domain": KIND_SWITCH},
             {"domain": KIND_LIGHT},
@@ -112,6 +110,17 @@ def _virtual_device_form_schema(
     )
     return vol.Schema(
         {
+            vol.Required(
+                "kind",
+                default=current.get("kind", KIND_SWITCH),
+            ): selector(
+                {
+                    "select": {
+                        "options": sorted(SUPPORTED_KINDS),
+                        "mode": "dropdown",
+                    }
+                }
+            ),
             vol.Required(
                 "entity_id",
                 default=current.get("entity_id", ""),
@@ -135,25 +144,6 @@ def _virtual_device_form_schema(
                 "allow_reverse",
                 default=current.get("allow_reverse", True),
             ): selector({"boolean": {}}),
-        }
-    )
-
-
-def _kind_form_schema(current: ConfigDict | None = None) -> vol.Schema:
-    current = current or {}
-    return vol.Schema(
-        {
-            vol.Required(
-                "kind",
-                default=current.get("kind", KIND_SWITCH),
-            ): selector(
-                {
-                    "select": {
-                        "options": sorted(SUPPORTED_KINDS),
-                        "mode": "dropdown",
-                    }
-                }
-            ),
         }
     )
 
@@ -376,24 +366,7 @@ class Plan44OptionsFlow(config_entries.OptionsFlow):
 
 
 class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._selected_kind = None
-
     async def async_step_user(
-        self,
-        user_input: ConfigDict | None = None,
-    ) -> Any:
-        if user_input is not None:
-            self._selected_kind = user_input["kind"]
-            return await self.async_step_entity()
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=_kind_form_schema(),
-        )
-
-    async def async_step_entity(
         self,
         user_input: ConfigDict | None = None,
     ) -> Any:
@@ -401,25 +374,23 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Merge kind into user_input for validation
-            full_input = {"kind": self._selected_kind, **user_input}
             errors = _validate_virtual_device(
                 self.hass,
                 entry,
-                full_input,
+                user_input,
             )
             if not errors:
-                entity_id = full_input["entity_id"]
-                name = full_input.get("name") or entity_id
+                entity_id = user_input["entity_id"]
+                name = user_input.get("name") or entity_id
                 self.hass.async_create_task(
                     _async_schedule_runtime_sync(self.hass, entry.entry_id)
                 )
-                return self.async_create_entry(title=name, data=full_input)
+                return self.async_create_entry(title=name, data=user_input)
 
         current = user_input or {}
         return self.async_show_form(
-            step_id="entity",
-            data_schema=_virtual_device_form_schema(current, self._selected_kind),
+            step_id="user",
+            data_schema=_virtual_device_form_schema(current),
             errors=errors,
         )
 

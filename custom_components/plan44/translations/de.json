@@ -54,19 +54,10 @@
       "flow_title": "Virtuelles Gerät",
       "step": {
         "user": {
-          "title": "Virtuellen Gerätetyp auswählen",
-          "description": "Wählen Sie den Typ des hinzuzufügenden virtuellen Geräts.",
+          "title": "Virtuelles Gerät hinzufügen",
+          "description": "Erstellen Sie ein virtuelles Gerät direkt über die Benutzeroberfläche.",
           "data": {
-            "kind": {
-              "name": "Virtueller Gerätetyp",
-              "description": "Wählen Sie den Gerätetyp (Schalter, Licht, Sensor oder binärer Sensor)"
-            }
-          }
-        },
-        "entity": {
-          "title": "Virtuelles Gerät konfigurieren",
-          "description": "Wählen Sie die Home Assistant-Entität und konfigurieren Sie Details.",
-          "data": {
+            "kind": "Virtueller Gerätetyp",
             "entity_id": "Quell-Entität",
             "name": "Anzeigename",
             "room_hint": "Raumhinweis",
