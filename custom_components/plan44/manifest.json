@@ -1,11 +1,12 @@
 {
   "domain": "plan44",
   "name": "plan44",
+  "logo": "plan44_stripes_logo_1024x1024.png",
   "version": "0.4.0",
   "config_flow": true,
   "iot_class": "local_push",
-  "documentation": "https://example.invalid/plan44",
-  "issue_tracker": "https://example.invalid/plan44/issues",
+  "documentation": "https://github.com/psewar/Plan44-HomeAssistant-Integration",
+  "issue_tracker": "https://github.com/psewar/Plan44-HomeAssistant-Integration/issues",
   "requirements": [],
   "codeowners": [
     "@kay"
