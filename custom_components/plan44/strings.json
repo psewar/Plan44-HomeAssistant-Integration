@@ -54,11 +54,17 @@
       "flow_title": "Virtual device",
       "step": {
         "user": {
-          "title": "Add virtual device",
-          "description": "Create a virtual device managed directly from the UI.",
+          "title": "Select virtual device type",
+          "description": "Choose the type of virtual device to add.",
+          "data": {
+            "kind": "Virtual device type"
+          }
+        },
+        "entity": {
+          "title": "Configure virtual device",
+          "description": "Select the Home Assistant entity and configure details.",
           "data": {
             "entity_id": "Source entity",
-            "kind": "Virtual device type",
             "name": "Display name",
             "room_hint": "Room hint",
             "allow_reverse": "Allow reverse control from plan44 to Home Assistant"
@@ -75,6 +81,12 @@
           }
         }
       }
+    }
+  },
+  "subentries": {
+    "virtual_device": {
+      "name": "Virtual Device",
+      "description": "Add a virtual device to export a Home Assistant entity to plan44 for remote control and monitoring."
     }
   }
 }
