@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.plan44.const import (
     CONF_AUTO_REPUBLISH,
@@ -37,38 +38,37 @@ TEST_ENTRY_DATA = {
 }
 
 
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
+    """Load integrations from custom_components/ so plan44 is discoverable."""
+    return
+
+
 @pytest.fixture
 def mock_plan44_client() -> Any:
     with patch(
-        "custom_components.plan44.__init__.Plan44Client",
+        "custom_components.plan44.Plan44Client",
         autospec=True,
     ) as client_cls:
         client = client_cls.return_value
         client.async_connect = AsyncMock()
         client.async_disconnect = AsyncMock()
         client.async_ensure_connected = AsyncMock()
-        client.async_register_switch_like = AsyncMock()
-        client.async_register_sensor = AsyncMock()
-        client.async_push_channel_value = AsyncMock()
-        client.async_push_sensor_value = AsyncMock()
+        client.async_register_device = AsyncMock()
+        client.async_push_state_messages = AsyncMock()
         client.is_connected = True
         yield client
 
 
 @pytest.fixture
-async def config_entry(hass: HomeAssistant) -> Any:
-    entry = hass.config_entries.async_add(
-        cast(
-            Any,
-            {
-                "version": 1,
-                "domain": DOMAIN,
-                "title": "plan44 (127.0.0.1)",
-                "data": TEST_ENTRY_DATA,
-                "options": {},
-            },
-        )
+def config_entry(hass: HomeAssistant) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="plan44 (127.0.0.1)",
+        data=TEST_ENTRY_DATA,
+        options={},
     )
+    entry.add_to_hass(hass)
     return entry
 
 
