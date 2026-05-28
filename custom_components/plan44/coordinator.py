@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from homeassistant.components.light import ATTR_BRIGHTNESS
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
@@ -23,8 +23,6 @@ from .const import (
     CONF_BLOCKLIST_INTEGRATIONS,
     CONF_RECONNECT_INTERVAL,
     FORWARD_COOLDOWN_SECONDS,
-    KIND_BINARY_SENSOR,
-    KIND_LIGHT,
     KIND_SENSOR,
     KIND_SWITCH,
     ORIGIN_HA,
@@ -33,14 +31,8 @@ from .const import (
     Plan44ConfigEntry,
 )
 from .plan44_client import Plan44Client
-from .plan44_core.models import (
-    BinarySensorState,
-    DeviceCommand,
-    DeviceState,
-    LightState,
-    SensorState,
-    SwitchState,
-)
+from .plan44_core.models import DeviceCommand
+from .state_mapping import ha_state_to_core
 from .store import ExportRecord, Plan44Store
 
 _LOGGER = logging.getLogger(__name__)
@@ -355,7 +347,7 @@ class Plan44Coordinator:
 
         await self.client.async_ensure_connected()
 
-        core_state = self._state_to_core(cfg["kind"], state)
+        core_state = ha_state_to_core(cfg["kind"], state)
         if core_state is None:
             return  # Skip forwarding if state conversion failed
         await self.client.async_push_state_messages(cfg["uid"], core_state)
@@ -467,34 +459,3 @@ class Plan44Coordinator:
         if isinstance(value, list):
             return {item.strip().lower() for item in value if item.strip()}
         return {item.strip().lower() for item in value.split(",") if item.strip()}
-
-    @staticmethod
-    def _state_to_core(kind: str, state: State) -> DeviceState | None:
-        attributes = state.attributes
-
-        if kind == KIND_SWITCH:
-            return SwitchState(is_on=state.state.lower() == "on")
-        if kind == KIND_LIGHT:
-            brightness_attr = attributes.get(ATTR_BRIGHTNESS)
-            brightness = (
-                int(brightness_attr)
-                if isinstance(brightness_attr, (int, float))
-                else None
-            )
-            return LightState(
-                is_on=state.state.lower() == "on",
-                brightness=brightness,
-            )
-        if kind == KIND_BINARY_SENSOR:
-            return BinarySensorState(is_on=state.state.lower() == "on")
-        if kind == KIND_SENSOR:
-            try:
-                return SensorState(numeric_value=float(state.state))
-            except ValueError, TypeError:
-                _LOGGER.warning(
-                    "Sensor %s has non-numeric state '%s', skipping forward sync",
-                    state.entity_id,
-                    state.state,
-                )
-                return None
-        return None

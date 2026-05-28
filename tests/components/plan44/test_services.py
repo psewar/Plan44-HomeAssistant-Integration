@@ -42,8 +42,8 @@ async def test_create_virtual_device_service(
 
     assert export is not None
     assert export["kind"] == "switch"
-    mock_plan44_client.async_register_switch_like.assert_awaited()
-    mock_plan44_client.async_push_channel_value.assert_awaited()
+    mock_plan44_client.async_register_device.assert_awaited()
+    mock_plan44_client.async_push_state_messages.assert_awaited()
 
 
 async def test_push_entity_state_service(
@@ -74,7 +74,7 @@ async def test_push_entity_state_service(
         blocking=True,
     )
 
-    mock_plan44_client.async_push_channel_value.reset_mock()
+    mock_plan44_client.async_push_state_messages.reset_mock()
 
     await hass.services.async_call(
         DOMAIN,
@@ -83,4 +83,4 @@ async def test_push_entity_state_service(
         blocking=True,
     )
 
-    mock_plan44_client.async_push_channel_value.assert_awaited()
+    mock_plan44_client.async_push_state_messages.assert_awaited()

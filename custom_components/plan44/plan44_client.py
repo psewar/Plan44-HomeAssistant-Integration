@@ -13,10 +13,8 @@ from .plan44_core.models import (
     VirtualDeviceSpec,
 )
 from .plan44_core.protocol import (
-    build_channel_message,
     build_init_message,
     build_initvdc_message,
-    build_sensor_message,
     parse_incoming_message,
     state_to_messages,
 )
@@ -117,12 +115,6 @@ class Plan44Client:
             unit=unit,
         )
         await self.async_send(build_init_message(spec))
-
-    async def async_push_channel_value(self, uid: str, value: int) -> None:
-        await self.async_send(build_channel_message(uid, value))
-
-    async def async_push_sensor_value(self, uid: str, value: float) -> None:
-        await self.async_send(build_sensor_message(uid, value))
 
     async def async_push_state_messages(
         self,

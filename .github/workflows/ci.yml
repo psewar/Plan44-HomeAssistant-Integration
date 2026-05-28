@@ -41,3 +41,6 @@ jobs:
 
       - name: Unit tests
         run: pytest tests/unit -q
+
+      - name: Integration tests
+        run: pytest -c pytest.ha.ini -q
