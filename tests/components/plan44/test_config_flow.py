@@ -10,9 +10,15 @@ from custom_components.plan44.const import DOMAIN
 
 
 async def test_user_flow_success(hass: HomeAssistant) -> None:
-    with patch(
-        "custom_components.plan44.config_flow._validate_connection",
-        new=AsyncMock(),
+    with (
+        patch(
+            "custom_components.plan44.config_flow._validate_connection",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.plan44.async_setup_entry",
+            new=AsyncMock(return_value=True),
+        ),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -31,6 +37,7 @@ async def test_user_flow_success(hass: HomeAssistant) -> None:
                 "blocklist_entity_id_prefixes": "",
             },
         )
+        await hass.async_block_till_done()
 
     result2 = cast(Any, result2)
     assert result2["type"] == "create_entry"
@@ -68,6 +75,7 @@ async def test_user_flow_cannot_connect(hass: HomeAssistant) -> None:
 async def test_options_flow_opens(
     hass: HomeAssistant,
     config_entry: Any,
+    mock_plan44_client: Any,
 ) -> None:
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
