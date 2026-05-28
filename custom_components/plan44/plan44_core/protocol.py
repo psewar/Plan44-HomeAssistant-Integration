@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 
 from .models import (
@@ -12,6 +13,8 @@ from .models import (
     SwitchState,
     VirtualDeviceSpec,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 LIGHT_MAX_BRIGHTNESS = 255
 P44_MAX_CHANNEL_VALUE = 100
@@ -228,6 +231,12 @@ def _sensor_defaults_for_unit(unit: str | None) -> tuple[int, float, float, floa
         return (14, 0.0, 2300.0, 1.0)
     if normalized in {"hpa", "mbar"}:
         return (18, 0.0, 1200.0, 1.0)
+    if unit:
+        _LOGGER.warning(
+            "Unknown sensor unit '%s'; using generic P44 defaults (type=0, 0–100). "
+            "Consider using one of: °C, %%, W, hPa, mbar.",
+            unit,
+        )
     return (0, 0.0, 100.0, 1.0)
 
 

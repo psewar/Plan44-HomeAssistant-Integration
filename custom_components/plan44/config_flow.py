@@ -168,6 +168,13 @@ def _validate_virtual_device(
         errors["base"] = "kind_mismatch"
         return errors
 
+    if kind == KIND_SENSOR:
+        try:
+            float(state.state)
+        except (ValueError, TypeError):
+            errors["base"] = "sensor_not_numeric"
+            return errors
+
     for subentry in getattr(entry, "subentries", {}).values():
         data = getattr(subentry, "data", None)
         if not isinstance(data, dict):

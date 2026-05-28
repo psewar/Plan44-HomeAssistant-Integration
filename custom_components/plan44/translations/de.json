@@ -79,7 +79,7 @@
   },
   "subentries": {
     "virtual_device": {
-      "name": "Virtuelles Gerät",
+      "name": "Virtuelles Gerät hinzufügen",
       "description": "Fügen Sie ein virtuelles Gerät hinzu, um eine Home Assistant-Entität zu plan44 für Fernsteuerung und Überwachung zu exportieren."
     }
   }

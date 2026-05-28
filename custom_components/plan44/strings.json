@@ -79,7 +79,7 @@
   },
   "subentries": {
     "virtual_device": {
-      "name": "Virtual Device",
+      "name": "Add Virtual Device",
       "description": "Add a virtual device to export a Home Assistant entity to plan44 for remote control and monitoring."
     }
   }

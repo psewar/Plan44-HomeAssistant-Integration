@@ -488,5 +488,13 @@ class Plan44Coordinator:
         if kind == KIND_BINARY_SENSOR:
             return BinarySensorState(is_on=state.state.lower() == "on")
         if kind == KIND_SENSOR:
-            return SensorState(numeric_value=float(state.state))
+            try:
+                return SensorState(numeric_value=float(state.state))
+            except (ValueError, TypeError):
+                _LOGGER.warning(
+                    "Sensor %s has non-numeric state '%s', skipping forward sync",
+                    state.entity_id,
+                    state.state,
+                )
+                return None
         return None
