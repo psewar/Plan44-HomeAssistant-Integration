@@ -490,7 +490,7 @@ class Plan44Coordinator:
         if kind == KIND_SENSOR:
             try:
                 return SensorState(numeric_value=float(state.state))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 _LOGGER.warning(
                     "Sensor %s has non-numeric state '%s', skipping forward sync",
                     state.entity_id,
