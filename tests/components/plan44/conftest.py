@@ -38,6 +38,12 @@ TEST_ENTRY_DATA = {
 }
 
 
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
+    """Load integrations from custom_components/ so plan44 is discoverable."""
+    return
+
+
 @pytest.fixture
 def mock_plan44_client() -> Any:
     with patch(
