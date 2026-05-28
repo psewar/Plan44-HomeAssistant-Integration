@@ -171,7 +171,7 @@ def _validate_virtual_device(
     if kind == KIND_SENSOR:
         try:
             float(state.state)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             errors["base"] = "sensor_not_numeric"
             return errors
 
