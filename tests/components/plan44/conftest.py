@@ -47,7 +47,7 @@ def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
 @pytest.fixture
 def mock_plan44_client() -> Any:
     with patch(
-        "custom_components.plan44.__init__.Plan44Client",
+        "custom_components.plan44.Plan44Client",
         autospec=True,
     ) as client_cls:
         client = client_cls.return_value
