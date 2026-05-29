@@ -22,7 +22,6 @@ from custom_components.plan44.const import (
 )
 from custom_components.plan44.coordinator import Plan44Coordinator, _inbound_sensor_spec
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -89,13 +88,16 @@ def test_spec_empty_unit_becomes_none() -> None:
 # ---------------------------------------------------------------------------
 
 
+_TAG = "enoceanaddress:00123456"
+
+
 def test_register_and_dispatch_callback() -> None:
     coord = _make_coordinator()
     received: list[float] = []
-    coord.register_inbound_sensor_callback("enoceanaddress:00123456", 4, received.append)
+    coord.register_inbound_sensor_callback(_TAG, 4, received.append)
     coord._dispatch_inbound_sensor(
-        {"message": "sensor", "tag": "enoceanaddress:00123456", "index": 4, "value": 0.98},
-        "enoceanaddress:00123456",
+        {"message": "sensor", "tag": _TAG, "index": 4, "value": 0.98},
+        _TAG,
     )
     assert received == [0.98]
 
@@ -186,9 +188,7 @@ def test_discovery_notification_fires_for_unknown_tag(
 
 def test_discovery_notification_not_fired_when_callback_registered() -> None:
     coord = _make_coordinator()
-    coord.register_inbound_sensor_callback(
-        "enoceanaddress:DEADBEEF", 0, lambda v: None
-    )
+    coord.register_inbound_sensor_callback("enoceanaddress:DEADBEEF", 0, lambda v: None)
     with patch(
         "custom_components.plan44.coordinator.persistent_notification"
     ) as mock_pn_module:
