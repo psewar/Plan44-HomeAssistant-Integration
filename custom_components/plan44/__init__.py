@@ -33,6 +33,8 @@ from .coordinator import Plan44Coordinator
 from .plan44_client import Plan44Client
 from .store import Plan44Store
 
+PLATFORMS = ["sensor"]
+
 _LOGGER = logging.getLogger(__name__)
 
 CREATE_DEVICE_SCHEMA = vol.Schema(
@@ -208,6 +210,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         store=store,
     )
 
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     entry.async_on_unload(entry.add_update_listener(_async_handle_entry_updated))
     entry.async_on_unload(
         lambda: _LOGGER.debug("Unloading plan44 entry %s", entry.entry_id)
@@ -216,5 +220,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
+    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     await entry.runtime_data.coordinator.async_shutdown()
     return True

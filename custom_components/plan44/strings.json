@@ -81,6 +81,10 @@
     "virtual_device": {
       "name": "Add Virtual Device",
       "description": "Add a virtual device to export a Home Assistant entity to plan44 for remote control and monitoring."
+    },
+    "p44_sensor": {
+      "name": "Add P44 Sensor",
+      "description": "Import a physical sensor registered on the plan44 gateway (e.g. EnOcean D2-14-41 acceleration channels) as a Home Assistant sensor entity."
     }
   }
 }

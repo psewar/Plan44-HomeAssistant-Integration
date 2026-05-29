@@ -30,6 +30,7 @@ DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 
 SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"
+SUBENTRY_TYPE_P44_SENSOR = "p44_sensor"
 
 
 SERVICE_CREATE_VIRTUAL_DEVICE = "create_virtual_device"
@@ -47,6 +48,16 @@ ATTR_NAME = "name"
 ATTR_ROOM_HINT = "room_hint"
 ATTR_ALLOW_REVERSE = "allow_reverse"
 ATTR_SUBENTRY_ID = "subentry_id"
+
+# p44_sensor subentry attributes
+ATTR_P44_TAG = "p44_tag"
+ATTR_P44_INDEX = "p44_index"
+ATTR_UNIT = "unit"
+ATTR_DEVICE_CLASS = "device_class"
+ATTR_SENSOR_TYPE = "sensor_type"
+ATTR_SENSOR_MIN = "sensor_min"
+ATTR_SENSOR_MAX = "sensor_max"
+ATTR_SENSOR_RESOLUTION = "sensor_resolution"
 
 KIND_SWITCH = "switch"
 KIND_LIGHT = "light"
