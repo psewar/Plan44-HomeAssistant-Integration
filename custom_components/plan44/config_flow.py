@@ -10,6 +10,15 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import selector
 
 from .const import (
+    ATTR_DEVICE_CLASS,
+    ATTR_NAME,
+    ATTR_P44_INDEX,
+    ATTR_P44_TAG,
+    ATTR_SENSOR_MAX,
+    ATTR_SENSOR_MIN,
+    ATTR_SENSOR_RESOLUTION,
+    ATTR_SENSOR_TYPE,
+    ATTR_UNIT,
     CONF_AUTO_REPUBLISH,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
@@ -30,6 +39,7 @@ from .const import (
     KIND_LIGHT,
     KIND_SENSOR,
     KIND_SWITCH,
+    SUBENTRY_TYPE_P44_SENSOR,
     SUBENTRY_TYPE_VIRTUAL_DEVICE,
     SUPPORTED_KINDS,
 )
@@ -342,7 +352,10 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: ConfigEntry,
     ) -> dict[str, type[ConfigSubentryFlow]]:
         del config_entry
-        return {SUBENTRY_TYPE_VIRTUAL_DEVICE: Plan44VirtualDeviceSubentryFlow}
+        return {
+            SUBENTRY_TYPE_VIRTUAL_DEVICE: Plan44VirtualDeviceSubentryFlow,
+            SUBENTRY_TYPE_P44_SENSOR: Plan44P44SensorSubentryFlow,
+        }
 
     @staticmethod
     def async_get_options_flow(
@@ -432,5 +445,138 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_virtual_device_form_schema(current),
+            errors=errors,
+        )
+
+
+# ---------------------------------------------------------------------------
+# P44-sourced sensor subentry flow
+# ---------------------------------------------------------------------------
+
+
+def _p44_sensor_form_schema(current: ConfigDict | None = None) -> vol.Schema:
+    """Schema for configuring a sensor whose value is pushed by plan44."""
+    c = current or {}
+    return vol.Schema(
+        {
+            vol.Required(ATTR_P44_TAG, default=c.get(ATTR_P44_TAG, "")): selector(
+                {"text": {}}
+            ),
+            vol.Optional(ATTR_P44_INDEX, default=c.get(ATTR_P44_INDEX, 0)): selector(
+                {"number": {"min": 0, "max": 15, "mode": "box"}}
+            ),
+            vol.Optional(ATTR_NAME, default=c.get(ATTR_NAME, "")): selector(
+                {"text": {}}
+            ),
+            vol.Optional(ATTR_UNIT, default=c.get(ATTR_UNIT, "")): selector(
+                {"text": {}}
+            ),
+            vol.Optional(
+                ATTR_DEVICE_CLASS, default=c.get(ATTR_DEVICE_CLASS, "")
+            ): selector({"text": {}}),
+            vol.Optional(
+                ATTR_SENSOR_TYPE, default=c.get(ATTR_SENSOR_TYPE, "")
+            ): selector({"text": {}}),
+            vol.Optional(ATTR_SENSOR_MIN, default=c.get(ATTR_SENSOR_MIN, "")): selector(
+                {"text": {}}
+            ),
+            vol.Optional(ATTR_SENSOR_MAX, default=c.get(ATTR_SENSOR_MAX, "")): selector(
+                {"text": {}}
+            ),
+            vol.Optional(
+                ATTR_SENSOR_RESOLUTION, default=c.get(ATTR_SENSOR_RESOLUTION, "")
+            ): selector({"text": {}}),
+        }
+    )
+
+
+def _coerce_p44_sensor_data(user_input: ConfigDict) -> ConfigDict:
+    """Normalise and type-coerce form values for storage."""
+    data: ConfigDict = {
+        ATTR_P44_TAG: str(user_input[ATTR_P44_TAG]).strip(),
+        ATTR_P44_INDEX: int(user_input.get(ATTR_P44_INDEX, 0)),
+        ATTR_NAME: str(user_input.get(ATTR_NAME, "")).strip() or None,
+        ATTR_UNIT: str(user_input.get(ATTR_UNIT, "")).strip() or None,
+        ATTR_DEVICE_CLASS: str(user_input.get(ATTR_DEVICE_CLASS, "")).strip() or None,
+    }
+    for float_key in (ATTR_SENSOR_MIN, ATTR_SENSOR_MAX, ATTR_SENSOR_RESOLUTION):
+        raw = str(user_input.get(float_key, "")).strip()
+        try:
+            data[float_key] = float(raw) if raw else None
+        except ValueError:
+            data[float_key] = None
+    raw_type = str(user_input.get(ATTR_SENSOR_TYPE, "")).strip()
+    try:
+        data[ATTR_SENSOR_TYPE] = int(raw_type) if raw_type else None
+    except ValueError:
+        data[ATTR_SENSOR_TYPE] = None
+    return data
+
+
+def _validate_p44_sensor(user_input: ConfigDict) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    if not str(user_input.get(ATTR_P44_TAG, "")).strip():
+        errors[ATTR_P44_TAG] = "p44_tag_required"
+    return errors
+
+
+async def _async_schedule_entry_reload(hass: HomeAssistant, entry_id: str) -> None:
+    """Reload the config entry so the sensor platform picks up subentry changes."""
+    await asyncio.sleep(0.3)
+    await hass.config_entries.async_reload(entry_id)
+
+
+class Plan44P44SensorSubentryFlow(config_entries.ConfigSubentryFlow):
+    """Subentry flow for registering a plan44-pushed sensor in Home Assistant."""
+
+    async def async_step_user(
+        self,
+        user_input: ConfigDict | None = None,
+    ) -> Any:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            errors = _validate_p44_sensor(user_input)
+            if not errors:
+                data = _coerce_p44_sensor_data(user_input)
+                name = data.get(ATTR_NAME) or data[ATTR_P44_TAG]
+                self.hass.async_create_task(
+                    _async_schedule_entry_reload(self.hass, self._get_entry().entry_id)
+                )
+                return self.async_create_entry(title=str(name), data=data)
+
+        current = user_input or {}
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_p44_sensor_form_schema(current),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self,
+        user_input: ConfigDict | None = None,
+    ) -> Any:
+        subentry = self._get_reconfigure_subentry()
+        current = dict(getattr(subentry, "data", {}))
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            errors = _validate_p44_sensor(user_input)
+            if not errors:
+                data = _coerce_p44_sensor_data(user_input)
+                name = data.get(ATTR_NAME) or data[ATTR_P44_TAG]
+                entry = self._get_entry()
+                self.hass.config_entries.async_update_subentry(
+                    entry, subentry, data=data, title=str(name)
+                )
+                self.hass.async_create_task(
+                    _async_schedule_entry_reload(self.hass, entry.entry_id)
+                )
+                return self.async_abort(reason="reconfigure_successful")
+
+        current = user_input or current
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_p44_sensor_form_schema(current),
             errors=errors,
         )
