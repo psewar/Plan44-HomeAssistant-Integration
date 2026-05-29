@@ -347,7 +347,7 @@ class Plan44Coordinator:
             data = getattr(subentry, "data", None)
             if not isinstance(data, Mapping):
                 continue
-            spec = _inbound_sensor_spec(data)
+            spec = inbound_sensor_spec(data)
             if spec is None:
                 continue
             try:
@@ -419,7 +419,7 @@ class Plan44Coordinator:
 
         # Dispatch inbound sensor messages (P44 physical device → HA sensor entity)
         if msg.get("message") == "sensor":
-            self._dispatch_inbound_sensor(msg, tag)
+            self.dispatch_inbound_sensor(msg, tag)
 
         # Reverse control for exported virtual devices (P44 → HA service calls)
         entity_id = self._entity_by_uid.get(tag)
@@ -515,7 +515,7 @@ class Plan44Coordinator:
             return None
         return entry.platform
 
-    def _dispatch_inbound_sensor(self, msg: dict[str, Any], tag: str) -> None:
+    def dispatch_inbound_sensor(self, msg: dict[str, Any], tag: str) -> None:
         """Fire the registered callback when P44 pushes a sensor value.
 
         If no entity is listening for this (tag, index) pair yet, fire a
@@ -585,7 +585,7 @@ class Plan44Coordinator:
 # ---------------------------------------------------------------------------
 
 
-def _inbound_sensor_spec(data: Mapping[str, Any]) -> VirtualDeviceSpec | None:
+def inbound_sensor_spec(data: Mapping[str, Any]) -> VirtualDeviceSpec | None:
     """Build a VirtualDeviceSpec for a p44_sensor subentry, or None if invalid."""
     tag = data.get(ATTR_P44_TAG)
     if not isinstance(tag, str) or not tag:

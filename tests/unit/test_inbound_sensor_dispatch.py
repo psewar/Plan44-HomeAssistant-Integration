@@ -1,4 +1,4 @@
-"""Unit tests for p44_sensor coordinator dispatch and _inbound_sensor_spec.
+"""Unit tests for p44_sensor coordinator dispatch and inbound_sensor_spec.
 
 These tests do NOT require a running Home Assistant — they create a minimal
 coordinator shell via object.__new__ and mock out hass/entry as needed.
@@ -20,7 +20,7 @@ from custom_components.plan44.const import (
     ATTR_SENSOR_TYPE,
     ATTR_UNIT,
 )
-from custom_components.plan44.coordinator import Plan44Coordinator, _inbound_sensor_spec
+from custom_components.plan44.coordinator import Plan44Coordinator, inbound_sensor_spec
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,7 +30,7 @@ from custom_components.plan44.coordinator import Plan44Coordinator, _inbound_sen
 def _make_coordinator() -> Plan44Coordinator:
     """Return a bare coordinator with only the inbound-sensor parts wired up."""
     coord = object.__new__(Plan44Coordinator)
-    coord._inbound_sensor_callbacks = {}
+    coord._inbound_sensor_callbacks = {}  # type: ignore[attr-defined]
     coord.hass = MagicMock()
     coord.entry = MagicMock()
     coord.entry.entry_id = "test_entry_id"
@@ -38,13 +38,13 @@ def _make_coordinator() -> Plan44Coordinator:
 
 
 # ---------------------------------------------------------------------------
-# _inbound_sensor_spec
+# inbound_sensor_spec
 # ---------------------------------------------------------------------------
 
 
 def test_spec_minimal() -> None:
     data = {ATTR_P44_TAG: "enoceanaddress:00123456"}
-    spec = _inbound_sensor_spec(data)
+    spec = inbound_sensor_spec(data)
     assert spec is not None
     assert spec.device_id == "enoceanaddress:00123456"
     assert spec.name == "enoceanaddress:00123456"
@@ -62,7 +62,7 @@ def test_spec_with_overrides() -> None:
         ATTR_SENSOR_MAX: 2.615,
         ATTR_SENSOR_RESOLUTION: 0.001,
     }
-    spec = _inbound_sensor_spec(data)
+    spec = inbound_sensor_spec(data)
     assert spec is not None
     assert spec.name == "D2-14-41 Acc X"
     assert spec.unit == "g"
@@ -73,12 +73,12 @@ def test_spec_with_overrides() -> None:
 
 
 def test_spec_missing_tag_returns_none() -> None:
-    assert _inbound_sensor_spec({}) is None
-    assert _inbound_sensor_spec({ATTR_P44_TAG: ""}) is None
+    assert inbound_sensor_spec({}) is None
+    assert inbound_sensor_spec({ATTR_P44_TAG: ""}) is None
 
 
 def test_spec_empty_unit_becomes_none() -> None:
-    spec = _inbound_sensor_spec({ATTR_P44_TAG: "t", ATTR_UNIT: ""})
+    spec = inbound_sensor_spec({ATTR_P44_TAG: "t", ATTR_UNIT: ""})
     assert spec is not None
     assert spec.unit is None
 
@@ -95,7 +95,7 @@ def test_register_and_dispatch_callback() -> None:
     coord = _make_coordinator()
     received: list[float] = []
     coord.register_inbound_sensor_callback(_TAG, 4, received.append)
-    coord._dispatch_inbound_sensor(
+    coord.dispatch_inbound_sensor(
         {"message": "sensor", "tag": _TAG, "index": 4, "value": 0.98},
         _TAG,
     )
@@ -106,7 +106,7 @@ def test_dispatch_ignores_missing_value() -> None:
     coord = _make_coordinator()
     received: list[float] = []
     coord.register_inbound_sensor_callback("tag::x", 0, received.append)
-    coord._dispatch_inbound_sensor({"message": "sensor", "tag": "tag::x"}, "tag::x")
+    coord.dispatch_inbound_sensor({"message": "sensor", "tag": "tag::x"}, "tag::x")
     assert received == []
 
 
@@ -114,7 +114,7 @@ def test_dispatch_logs_invalid_value(caplog: pytest.LogCaptureFixture) -> None:
     coord = _make_coordinator()
     coord.register_inbound_sensor_callback("tag::x", 0, lambda v: None)
     with caplog.at_level(logging.WARNING):
-        coord._dispatch_inbound_sensor(
+        coord.dispatch_inbound_sensor(
             {"message": "sensor", "tag": "tag::x", "value": "not-a-number"},
             "tag::x",
         )
@@ -126,7 +126,7 @@ def test_unregister_callback() -> None:
     received: list[float] = []
     coord.register_inbound_sensor_callback("tag::x", 0, received.append)
     coord.unregister_inbound_sensor_callback("tag::x", 0)
-    coord._dispatch_inbound_sensor(
+    coord.dispatch_inbound_sensor(
         {"message": "sensor", "tag": "tag::x", "value": 1.0}, "tag::x"
     )
     assert received == []
@@ -141,7 +141,7 @@ def test_dispatch_uses_default_index_zero() -> None:
     coord = _make_coordinator()
     received: list[float] = []
     coord.register_inbound_sensor_callback("tag::x", 0, received.append)
-    coord._dispatch_inbound_sensor(
+    coord.dispatch_inbound_sensor(
         {"message": "sensor", "tag": "tag::x", "value": 3.14},  # no "index" key
         "tag::x",
     )
@@ -154,7 +154,7 @@ def test_separate_indices_are_independent() -> None:
     b: list[float] = []
     coord.register_inbound_sensor_callback("tag::x", 0, a.append)
     coord.register_inbound_sensor_callback("tag::x", 1, b.append)
-    coord._dispatch_inbound_sensor(
+    coord.dispatch_inbound_sensor(
         {"message": "sensor", "tag": "tag::x", "index": 1, "value": 9.9}, "tag::x"
     )
     assert a == []
@@ -176,7 +176,7 @@ def test_discovery_notification_fires_for_unknown_tag(
         ) as mock_pn_module,
         caplog.at_level(logging.INFO),
     ):
-        coord._dispatch_inbound_sensor(
+        coord.dispatch_inbound_sensor(
             {"message": "sensor", "tag": "enoceanaddress:DEADBEEF", "value": 1.23},
             "enoceanaddress:DEADBEEF",
         )
@@ -192,7 +192,7 @@ def test_discovery_notification_not_fired_when_callback_registered() -> None:
     with patch(
         "custom_components.plan44.coordinator.persistent_notification"
     ) as mock_pn_module:
-        coord._dispatch_inbound_sensor(
+        coord.dispatch_inbound_sensor(
             {"message": "sensor", "tag": "enoceanaddress:DEADBEEF", "value": 1.23},
             "enoceanaddress:DEADBEEF",
         )
