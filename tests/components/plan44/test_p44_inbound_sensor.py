@@ -135,7 +135,7 @@ async def test_binary_input_updates_from_push(
 
     coordinator = entry.runtime_data.coordinator
     await coordinator.async_handle_plan44_message(
-        {"message": "input", "tag": _TAG, "index": 7, "value": 1}
+        {"message": "input", "tag": _TAG, "index": 0, "value": 1}
     )
     await hass.async_block_till_done()
 
