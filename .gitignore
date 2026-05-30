@@ -30,4 +30,6 @@ config/
 .storage/
 
 devtools/.env.live
+devtools/.env.p44
+devtools/devices.json
 artifacts/*.jsonl

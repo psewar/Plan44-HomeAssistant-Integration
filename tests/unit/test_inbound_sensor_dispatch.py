@@ -55,13 +55,14 @@ def test_d2_14_41_has_all_channels() -> None:
     tpl = get_template("d2_14_41")
     assert tpl is not None
     assert len(tpl.channels) == 8
-    by_index = {c.index: c for c in tpl.channels}
-    assert by_index[0].device_class == "temperature"
-    assert by_index[4].name == "Acceleration X"
-    assert by_index[4].unit == "g"
-    # contact is a binary input, not a sensor
-    assert by_index[7].platform == PLATFORM_BINARY_SENSOR
-    assert by_index[7].message == MSG_INPUT
+    by_key = {c.key: c for c in tpl.channels}
+    assert by_key["temperature"].device_class == "temperature"
+    assert by_key["acceleration_x"].name == "Acceleration X"
+    assert by_key["acceleration_x"].unit == "g"
+    # contact is a binary input with its own 0-based index sequence
+    assert by_key["contact"].platform == PLATFORM_BINARY_SENSOR
+    assert by_key["contact"].message == MSG_INPUT
+    assert by_key["contact"].index == 0
 
 
 def test_template_options_includes_custom() -> None:
@@ -90,10 +91,12 @@ def test_build_custom_template_binary() -> None:
     assert channel.state_class is None
 
 
-def test_all_templates_have_unique_indices() -> None:
+def test_all_templates_have_unique_message_index() -> None:
     for key, tpl in DEVICE_TEMPLATES.items():
-        indices = [c.index for c in tpl.channels]
-        assert len(indices) == len(set(indices)), f"duplicate index in {key}"
+        pairs = [(c.message, c.index) for c in tpl.channels]
+        assert len(pairs) == len(set(pairs)), f"duplicate (message,index) in {key}"
+        keys = [c.key for c in tpl.channels]
+        assert len(keys) == len(set(keys)), f"duplicate key in {key}"
 
 
 # ---------------------------------------------------------------------------
