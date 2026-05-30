@@ -33,7 +33,7 @@ from .coordinator import Plan44Coordinator
 from .plan44_client import Plan44Client
 from .store import Plan44Store
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["binary_sensor", "sensor"]
 
 _LOGGER = logging.getLogger(__name__)
 

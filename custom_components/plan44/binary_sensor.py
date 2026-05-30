@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from decimal import Decimal
 from functools import cached_property
 from typing import Any
 
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -17,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, SUBENTRY_TYPE_P44_DEVICE, Plan44ConfigEntry
 from .coordinator import Plan44Coordinator
-from .device_templates import PLATFORM_SENSOR, ChannelTemplate
+from .device_templates import PLATFORM_BINARY_SENSOR, ChannelTemplate
 from .inbound import resolve_device
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,10 +26,10 @@ async def async_setup_entry(
     entry: Plan44ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create sensor entities for every sensor channel of each p44_device."""
+    """Create binary_sensor entities for binary channels of each p44_device."""
     coordinator = entry.runtime_data.coordinator
 
-    entities: list[Plan44InboundSensorEntity] = []
+    entities: list[Plan44InboundBinarySensorEntity] = []
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
             continue
@@ -40,14 +38,13 @@ async def async_setup_entry(
             continue
         resolved = resolve_device(data)
         if resolved is None:
-            _LOGGER.warning("p44_device subentry %s has no valid tag", subentry_id)
             continue
         tag, device_name, channels = resolved
         for channel in channels:
-            if channel.platform != PLATFORM_SENSOR:
+            if channel.platform != PLATFORM_BINARY_SENSOR:
                 continue
             entities.append(
-                Plan44InboundSensorEntity(
+                Plan44InboundBinarySensorEntity(
                     coordinator=coordinator,
                     entry_id=entry.entry_id,
                     subentry_id=subentry_id,
@@ -61,8 +58,8 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 
-class Plan44InboundSensorEntity(SensorEntity):
-    """A sensor whose value is pushed by plan44 for a physical-device channel."""
+class Plan44InboundBinarySensorEntity(BinarySensorEntity):
+    """A binary sensor whose state is pushed by plan44 (input channel)."""
 
     _attr_should_poll = False
     _attr_has_entity_name = True
@@ -80,9 +77,8 @@ class Plan44InboundSensorEntity(SensorEntity):
         self._tag = tag
         self._channel = channel
         self._attr_name = channel.name
-        self._attr_native_unit_of_measurement = channel.unit
         self._attr_unique_id = f"{entry_id}_{subentry_id}_{channel.key}"
-        self._attr_native_value = None
+        self._attr_is_on = None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, tag)},
             name=device_name,
@@ -90,18 +86,13 @@ class Plan44InboundSensorEntity(SensorEntity):
         )
         if channel.device_class:
             try:
-                self._attr_device_class = SensorDeviceClass(channel.device_class)
+                self._attr_device_class = BinarySensorDeviceClass(channel.device_class)
             except ValueError:
                 _LOGGER.warning(
-                    "Unknown sensor device_class '%s' for %s — ignoring",
+                    "Unknown binary_sensor device_class '%s' for %s — ignoring",
                     channel.device_class,
                     self._attr_unique_id,
                 )
-        if channel.state_class:
-            try:
-                self._attr_state_class = SensorStateClass(channel.state_class)
-            except ValueError:
-                pass
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -117,7 +108,7 @@ class Plan44InboundSensorEntity(SensorEntity):
 
     @callback
     def _on_value(self, value: float) -> None:
-        self._attr_native_value = Decimal(str(value))
+        self._attr_is_on = value != 0
         self.async_write_ha_state()
 
     @cached_property

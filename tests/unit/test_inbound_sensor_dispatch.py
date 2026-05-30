@@ -1,4 +1,4 @@
-"""Unit tests for p44_sensor coordinator dispatch and inbound_sensor_spec.
+"""Unit tests for inbound (P44 -> HA) dispatch, templates and the resolver.
 
 These tests do NOT require a running Home Assistant — they create a minimal
 coordinator shell via object.__new__ and mock out hass/entry as needed.
@@ -12,25 +12,34 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from custom_components.plan44.const import (
+    ATTR_DEVICE_CLASS,
     ATTR_NAME,
+    ATTR_P44_INDEX,
     ATTR_P44_TAG,
-    ATTR_SENSOR_MAX,
-    ATTR_SENSOR_MIN,
-    ATTR_SENSOR_RESOLUTION,
-    ATTR_SENSOR_TYPE,
-    ATTR_UNIT,
+    ATTR_PLATFORM,
+    ATTR_TEMPLATE,
 )
-from custom_components.plan44.coordinator import Plan44Coordinator, inbound_sensor_spec
+from custom_components.plan44.coordinator import Plan44Coordinator
+from custom_components.plan44.device_templates import (
+    DEVICE_TEMPLATES,
+    MSG_INPUT,
+    MSG_SENSOR,
+    PLATFORM_BINARY_SENSOR,
+    PLATFORM_SENSOR,
+    TEMPLATE_CUSTOM,
+    build_custom_template,
+    get_template,
+    template_options,
+)
+from custom_components.plan44.inbound import resolve_device
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+_TAG = "enoceanaddress:00123456"
 
 
 def _make_coordinator() -> Plan44Coordinator:
-    """Return a bare coordinator with only the inbound-sensor parts wired up."""
     coord = object.__new__(Plan44Coordinator)
-    coord._inbound_sensor_callbacks = {}  # type: ignore[attr-defined]
+    coord._inbound_callbacks = {}  # type: ignore[attr-defined]
+    coord._discovered_indices_by_tag = {}  # type: ignore[attr-defined]
     coord.hass = MagicMock()
     coord.entry = MagicMock()
     coord.entry.entry_id = "test_entry_id"
@@ -38,85 +47,160 @@ def _make_coordinator() -> Plan44Coordinator:
 
 
 # ---------------------------------------------------------------------------
-# inbound_sensor_spec
+# device_templates
 # ---------------------------------------------------------------------------
 
 
-def test_spec_minimal() -> None:
-    data = {ATTR_P44_TAG: "enoceanaddress:00123456"}
-    spec = inbound_sensor_spec(data)
-    assert spec is not None
-    assert spec.device_id == "enoceanaddress:00123456"
-    assert spec.name == "enoceanaddress:00123456"
-    assert spec.kind == "sensor"
-    assert spec.unit is None
+def test_d2_14_41_has_all_channels() -> None:
+    tpl = get_template("d2_14_41")
+    assert tpl is not None
+    assert len(tpl.channels) == 8
+    by_index = {c.index: c for c in tpl.channels}
+    assert by_index[0].device_class == "temperature"
+    assert by_index[4].name == "Acceleration X"
+    assert by_index[4].unit == "g"
+    # contact is a binary input, not a sensor
+    assert by_index[7].platform == PLATFORM_BINARY_SENSOR
+    assert by_index[7].message == MSG_INPUT
 
 
-def test_spec_with_overrides() -> None:
-    data = {
-        ATTR_P44_TAG: "enoceanaddress:ABCD1234",
-        ATTR_NAME: "D2-14-41 Acc X",
-        ATTR_UNIT: "g",
-        ATTR_SENSOR_TYPE: 5,
-        ATTR_SENSOR_MIN: -2.5,
-        ATTR_SENSOR_MAX: 2.615,
-        ATTR_SENSOR_RESOLUTION: 0.001,
-    }
-    spec = inbound_sensor_spec(data)
-    assert spec is not None
-    assert spec.name == "D2-14-41 Acc X"
-    assert spec.unit == "g"
-    assert spec.sensor_type == 5
-    assert spec.sensor_min == -2.5
-    assert spec.sensor_max == 2.615
-    assert spec.sensor_resolution == 0.001
+def test_template_options_includes_custom() -> None:
+    options = template_options()
+    assert TEMPLATE_CUSTOM in options
+    assert "d2_14_41" in options
 
 
-def test_spec_missing_tag_returns_none() -> None:
-    assert inbound_sensor_spec({}) is None
-    assert inbound_sensor_spec({ATTR_P44_TAG: ""}) is None
+def test_build_custom_template_sensor() -> None:
+    tpl = build_custom_template(
+        index=3, platform=PLATFORM_SENSOR, unit="W", device_class="power"
+    )
+    (channel,) = tpl.channels
+    assert channel.index == 3
+    assert channel.message == MSG_SENSOR
+    assert channel.name is None  # adopts device name
+    assert channel.unit == "W"
 
 
-def test_spec_empty_unit_becomes_none() -> None:
-    spec = inbound_sensor_spec({ATTR_P44_TAG: "t", ATTR_UNIT: ""})
-    assert spec is not None
-    assert spec.unit is None
+def test_build_custom_template_binary() -> None:
+    tpl = build_custom_template(
+        index=0, platform=PLATFORM_BINARY_SENSOR, unit=None, device_class="motion"
+    )
+    (channel,) = tpl.channels
+    assert channel.message == MSG_INPUT
+    assert channel.state_class is None
+
+
+def test_all_templates_have_unique_indices() -> None:
+    for key, tpl in DEVICE_TEMPLATES.items():
+        indices = [c.index for c in tpl.channels]
+        assert len(indices) == len(set(indices)), f"duplicate index in {key}"
 
 
 # ---------------------------------------------------------------------------
-# Coordinator: callback registration and dispatch
+# inbound.resolve_device
 # ---------------------------------------------------------------------------
 
 
-_TAG = "enoceanaddress:00123456"
+def test_resolve_template_device() -> None:
+    resolved = resolve_device(
+        {ATTR_P44_TAG: _TAG, ATTR_TEMPLATE: "d2_14_41", ATTR_NAME: "Multi"}
+    )
+    assert resolved is not None
+    tag, name, channels = resolved
+    assert tag == _TAG
+    assert name == "Multi"
+    assert len(channels) == 8
 
 
-def test_register_and_dispatch_callback() -> None:
+def test_resolve_custom_device() -> None:
+    resolved = resolve_device(
+        {
+            ATTR_P44_TAG: _TAG,
+            ATTR_TEMPLATE: TEMPLATE_CUSTOM,
+            ATTR_NAME: "Door",
+            ATTR_P44_INDEX: 7,
+            ATTR_PLATFORM: PLATFORM_BINARY_SENSOR,
+            ATTR_DEVICE_CLASS: "opening",
+        }
+    )
+    assert resolved is not None
+    _, name, channels = resolved
+    assert name == "Door"
+    assert len(channels) == 1
+    assert channels[0].index == 7
+    assert channels[0].platform == PLATFORM_BINARY_SENSOR
+
+
+def test_resolve_missing_tag_returns_none() -> None:
+    assert resolve_device({ATTR_TEMPLATE: "d2_14_41"}) is None
+
+
+def test_resolve_unknown_template_yields_no_channels() -> None:
+    resolved = resolve_device({ATTR_P44_TAG: _TAG, ATTR_TEMPLATE: "nope"})
+    assert resolved is not None
+    _, _, channels = resolved
+    assert channels == ()
+
+
+def test_resolve_name_defaults_to_tag() -> None:
+    resolved = resolve_device({ATTR_P44_TAG: _TAG, ATTR_TEMPLATE: "d2_14_40"})
+    assert resolved is not None
+    _, name, _ = resolved
+    assert name == _TAG
+
+
+# ---------------------------------------------------------------------------
+# Coordinator dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_register_and_dispatch_sensor() -> None:
     coord = _make_coordinator()
     received: list[float] = []
-    coord.register_inbound_sensor_callback(_TAG, 4, received.append)
-    coord.dispatch_inbound_sensor(
-        {"message": "sensor", "tag": _TAG, "index": 4, "value": 0.98},
-        _TAG,
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 4, received.append)
+    coord.dispatch_inbound_channel(
+        {"message": "sensor", "tag": _TAG, "index": 4, "value": 0.98}, _TAG
     )
     assert received == [0.98]
+
+
+def test_register_and_dispatch_input() -> None:
+    coord = _make_coordinator()
+    received: list[float] = []
+    coord.register_inbound_callback(MSG_INPUT, _TAG, 7, received.append)
+    coord.dispatch_inbound_channel(
+        {"message": "input", "tag": _TAG, "index": 7, "value": 1}, _TAG
+    )
+    assert received == [1.0]
+
+
+def test_sensor_and_input_same_index_are_independent() -> None:
+    coord = _make_coordinator()
+    s: list[float] = []
+    i: list[float] = []
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, s.append)
+    coord.register_inbound_callback(MSG_INPUT, _TAG, 0, i.append)
+    coord.dispatch_inbound_channel(
+        {"message": "input", "tag": _TAG, "index": 0, "value": 1}, _TAG
+    )
+    assert s == []
+    assert i == [1.0]
 
 
 def test_dispatch_ignores_missing_value() -> None:
     coord = _make_coordinator()
     received: list[float] = []
-    coord.register_inbound_sensor_callback("tag::x", 0, received.append)
-    coord.dispatch_inbound_sensor({"message": "sensor", "tag": "tag::x"}, "tag::x")
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, received.append)
+    coord.dispatch_inbound_channel({"message": "sensor", "tag": _TAG}, _TAG)
     assert received == []
 
 
 def test_dispatch_logs_invalid_value(caplog: pytest.LogCaptureFixture) -> None:
     coord = _make_coordinator()
-    coord.register_inbound_sensor_callback("tag::x", 0, lambda v: None)
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, lambda v: None)
     with caplog.at_level(logging.WARNING):
-        coord.dispatch_inbound_sensor(
-            {"message": "sensor", "tag": "tag::x", "value": "not-a-number"},
-            "tag::x",
+        coord.dispatch_inbound_channel(
+            {"message": "sensor", "tag": _TAG, "value": "nan-ish"}, _TAG
         )
     assert any("invalid sensor value" in r.message for r in caplog.records)
 
@@ -124,45 +208,31 @@ def test_dispatch_logs_invalid_value(caplog: pytest.LogCaptureFixture) -> None:
 def test_unregister_callback() -> None:
     coord = _make_coordinator()
     received: list[float] = []
-    coord.register_inbound_sensor_callback("tag::x", 0, received.append)
-    coord.unregister_inbound_sensor_callback("tag::x", 0)
-    coord.dispatch_inbound_sensor(
-        {"message": "sensor", "tag": "tag::x", "value": 1.0}, "tag::x"
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, received.append)
+    coord.unregister_inbound_callback(MSG_SENSOR, _TAG, 0)
+    coord.dispatch_inbound_channel(
+        {"message": "sensor", "tag": _TAG, "value": 1.0}, _TAG
     )
     assert received == []
 
 
 def test_unregister_unknown_key_is_safe() -> None:
     coord = _make_coordinator()
-    coord.unregister_inbound_sensor_callback("tag::unknown", 99)  # must not raise
+    coord.unregister_inbound_callback(MSG_SENSOR, _TAG, 99)
 
 
-def test_dispatch_uses_default_index_zero() -> None:
+def test_dispatch_default_index_zero() -> None:
     coord = _make_coordinator()
     received: list[float] = []
-    coord.register_inbound_sensor_callback("tag::x", 0, received.append)
-    coord.dispatch_inbound_sensor(
-        {"message": "sensor", "tag": "tag::x", "value": 3.14},  # no "index" key
-        "tag::x",
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, received.append)
+    coord.dispatch_inbound_channel(
+        {"message": "sensor", "tag": _TAG, "value": 3.14}, _TAG
     )
     assert received == [3.14]
 
 
-def test_separate_indices_are_independent() -> None:
-    coord = _make_coordinator()
-    a: list[float] = []
-    b: list[float] = []
-    coord.register_inbound_sensor_callback("tag::x", 0, a.append)
-    coord.register_inbound_sensor_callback("tag::x", 1, b.append)
-    coord.dispatch_inbound_sensor(
-        {"message": "sensor", "tag": "tag::x", "index": 1, "value": 9.9}, "tag::x"
-    )
-    assert a == []
-    assert b == [9.9]
-
-
 # ---------------------------------------------------------------------------
-# Coordinator: passive discovery notification
+# Discovery notification
 # ---------------------------------------------------------------------------
 
 
@@ -173,27 +243,50 @@ def test_discovery_notification_fires_for_unknown_tag(
     with (
         patch(
             "custom_components.plan44.coordinator.persistent_notification"
-        ) as mock_pn_module,
+        ) as mock_pn,
         caplog.at_level(logging.INFO),
     ):
-        coord.dispatch_inbound_sensor(
-            {"message": "sensor", "tag": "enoceanaddress:DEADBEEF", "value": 1.23},
-            "enoceanaddress:DEADBEEF",
+        coord.dispatch_inbound_channel(
+            {
+                "message": "sensor",
+                "tag": "enoceanaddress:DEAD",
+                "index": 4,
+                "value": 1.2,
+            },
+            "enoceanaddress:DEAD",
         )
-        mock_pn_module.async_create.assert_called_once()
-        call_kwargs = mock_pn_module.async_create.call_args.kwargs
-        assert "enoceanaddress:DEADBEEF" in call_kwargs["message"]
-    assert any("Discovered new plan44 sensor" in r.message for r in caplog.records)
+        mock_pn.async_create.assert_called_once()
+        msg = mock_pn.async_create.call_args.kwargs["message"]
+        assert "enoceanaddress:DEAD" in msg
+    assert any(
+        "Discovered unimported plan44 device" in r.message for r in caplog.records
+    )
 
 
-def test_discovery_notification_not_fired_when_callback_registered() -> None:
+def test_discovery_notification_accumulates_indices() -> None:
     coord = _make_coordinator()
-    coord.register_inbound_sensor_callback("enoceanaddress:DEADBEEF", 0, lambda v: None)
+    tag = "enoceanaddress:DEAD"
     with patch(
         "custom_components.plan44.coordinator.persistent_notification"
-    ) as mock_pn_module:
-        coord.dispatch_inbound_sensor(
-            {"message": "sensor", "tag": "enoceanaddress:DEADBEEF", "value": 1.23},
-            "enoceanaddress:DEADBEEF",
+    ) as mock_pn:
+        coord.dispatch_inbound_channel(
+            {"message": "sensor", "tag": tag, "index": 0, "value": 1.0}, tag
         )
-        mock_pn_module.async_create.assert_not_called()
+        coord.dispatch_inbound_channel(
+            {"message": "sensor", "tag": tag, "index": 4, "value": 2.0}, tag
+        )
+        # second notification lists both indices
+        last_msg = mock_pn.async_create.call_args.kwargs["message"]
+        assert "0, 4" in last_msg
+
+
+def test_discovery_not_fired_when_callback_registered() -> None:
+    coord = _make_coordinator()
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, lambda v: None)
+    with patch(
+        "custom_components.plan44.coordinator.persistent_notification"
+    ) as mock_pn:
+        coord.dispatch_inbound_channel(
+            {"message": "sensor", "tag": _TAG, "index": 0, "value": 1.2}, _TAG
+        )
+        mock_pn.async_create.assert_not_called()

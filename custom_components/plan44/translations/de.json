@@ -50,49 +50,16 @@
     }
   },
   "config_subentries": {
-    "p44_sensor": {
-      "flow_title": "P44-Sensor",
-      "step": {
-        "user": {
-          "title": "P44-Sensor importieren",
-          "description": "Konfiguriere eine Sensor-Entität, die ihren Wert von einem auf plan44 registrierten physischen Gerät empfängt (z.B. EnOcean D2-14-41). plan44 pusht Sensordaten automatisch nach Home Assistant.\n\nDer **Tag** ist der plan44-Gerätebezeichner (z.B. `enoceanaddress:00123456`). Der **Index** wählt den Sensorkanal (0 = erster Kanal).\n\nHinweis: Wenn plan44 Daten für einen noch nicht konfigurierten Tag sendet, erscheint eine Home-Assistant-Benachrichtigung mit Tag und Index.",
-          "data": {
-            "p44_tag": "Plan44-Geräte-Tag",
-            "p44_index": "Sensorkanal-Index",
-            "name": "Anzeigename",
-            "unit": "Maßeinheit",
-            "device_class": "Geräteklasse (optional)",
-            "sensor_type": "P44-Sensortyp (optionale Überschreibung)",
-            "sensor_min": "Minimalwert (optionale Überschreibung)",
-            "sensor_max": "Maximalwert (optionale Überschreibung)",
-            "sensor_resolution": "Auflösung (optionale Überschreibung)"
-          }
-        },
-        "reconfigure": {
-          "title": "P44-Sensor bearbeiten",
-          "data": {
-            "p44_tag": "Plan44-Geräte-Tag",
-            "p44_index": "Sensorkanal-Index",
-            "name": "Anzeigename",
-            "unit": "Maßeinheit",
-            "device_class": "Geräteklasse (optional)",
-            "sensor_type": "P44-Sensortyp (optionale Überschreibung)",
-            "sensor_min": "Minimalwert (optionale Überschreibung)",
-            "sensor_max": "Maximalwert (optionale Überschreibung)",
-            "sensor_resolution": "Auflösung (optionale Überschreibung)"
-          }
-        }
-      },
-      "error": {
-        "p44_tag_required": "Ein plan44-Geräte-Tag ist erforderlich."
-      }
-    },
     "virtual_device": {
-      "flow_title": "Virtuelles Gerät",
+      "initiate_flow": {
+        "user": "Virtuelles Gerät hinzufügen",
+        "reconfigure": "Virtuelles Gerät bearbeiten"
+      },
+      "entry_type": "Virtuelles Gerät",
       "step": {
         "user": {
           "title": "Virtuelles Gerät hinzufügen",
-          "description": "Erstellen Sie ein virtuelles Gerät direkt über die Benutzeroberfläche.",
+          "description": "Exportiert eine Home-Assistant-Entität zu plan44 für Fernsteuerung und Überwachung.",
           "data": {
             "kind": "Virtueller Gerätetyp",
             "entity_id": "Quell-Entität",
@@ -112,16 +79,45 @@
           }
         }
       }
-    }
-  },
-  "subentries": {
-    "virtual_device": {
-      "name": "Virtuelles Gerät hinzufügen",
-      "description": "Fügen Sie ein virtuelles Gerät hinzu, um eine Home Assistant-Entität zu plan44 für Fernsteuerung und Überwachung zu exportieren."
     },
-    "p44_sensor": {
-      "name": "P44-Sensor hinzufügen",
-      "description": "Importiert einen auf dem plan44-Gateway registrierten physischen Sensor (z.B. EnOcean D2-14-41 Beschleunigungskanäle) als Home-Assistant-Sensor-Entität."
+    "p44_device": {
+      "initiate_flow": {
+        "user": "P44-Gerät importieren",
+        "reconfigure": "P44-Gerät bearbeiten"
+      },
+      "entry_type": "P44-Gerät",
+      "step": {
+        "user": {
+          "title": "Plan44-Gerät importieren",
+          "description": "Importiert ein physisches Gerät vom plan44-Gateway (z.B. einen EnOcean-Multisensor, den Digitalstrom nicht kennt). Wähle das passende Profil – alle Kanäle werden automatisch zu Home-Assistant-Entitäten.\n\nDer Tag ist die plan44-Geräte-ID (z.B. `enoceanaddress:00123456`). Wenn plan44 Daten für ein unbekanntes Gerät sendet, zeigt eine Benachrichtigung dessen Tag.",
+          "data": {
+            "p44_tag": "Plan44-Geräte-Tag",
+            "template": "Geräteprofil",
+            "name": "Anzeigename"
+          }
+        },
+        "custom": {
+          "title": "Einzelsensor-Details",
+          "description": "Konfiguriere den zu importierenden Kanal.",
+          "data": {
+            "p44_index": "Kanal-Index",
+            "platform": "Entitätstyp",
+            "unit": "Maßeinheit",
+            "device_class": "Geräteklasse (optional)"
+          }
+        },
+        "reconfigure": {
+          "title": "P44-Gerät bearbeiten",
+          "data": {
+            "p44_tag": "Plan44-Geräte-Tag",
+            "template": "Geräteprofil",
+            "name": "Anzeigename"
+          }
+        }
+      },
+      "error": {
+        "p44_tag_required": "Ein plan44-Geräte-Tag ist erforderlich."
+      }
     }
   }
 }

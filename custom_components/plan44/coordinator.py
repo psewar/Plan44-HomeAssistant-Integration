@@ -19,13 +19,7 @@ from .const import (
     ATTR_ENTITY_ID,
     ATTR_KIND,
     ATTR_NAME,
-    ATTR_P44_TAG,
     ATTR_ROOM_HINT,
-    ATTR_SENSOR_MAX,
-    ATTR_SENSOR_MIN,
-    ATTR_SENSOR_RESOLUTION,
-    ATTR_SENSOR_TYPE,
-    ATTR_UNIT,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
     CONF_RECONNECT_INTERVAL,
@@ -36,16 +30,19 @@ from .const import (
     ORIGIN_HA,
     ORIGIN_P44,
     REVERSE_COOLDOWN_SECONDS,
-    SUBENTRY_TYPE_P44_SENSOR,
     Plan44ConfigEntry,
 )
+from .device_templates import MSG_INPUT, MSG_SENSOR
 from .plan44_client import Plan44Client
-from .plan44_core.models import DeviceCommand, VirtualDeviceSpec
-from .plan44_core.protocol import build_init_message
+from .plan44_core.models import DeviceCommand
 from .state_mapping import ha_state_to_core
 from .store import ExportRecord, Plan44Store
 
-InboundSensorCallback = Callable[[float], None]
+# Callback invoked with the latest value P44 pushed for an inbound channel.
+InboundChannelCallback = Callable[[float], None]
+
+# P44 message types that carry an inbound channel value, keyed for dispatch.
+_INBOUND_MESSAGE_TYPES = (MSG_SENSOR, MSG_INPUT)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,10 +72,10 @@ class Plan44Coordinator:
         self._last_write_ts_by_entity: dict[str, float] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
         self._startup_sync_unsub: Callable[[], None] | None = None
-        # (tag, index) → callback for sensors pushed by P44 into HA
-        self._inbound_sensor_callbacks: dict[
-            tuple[str, int], InboundSensorCallback
-        ] = {}
+        # (message_type, tag, index) → callback for channels pushed by P44 into HA
+        self._inbound_callbacks: dict[tuple[str, str, int], InboundChannelCallback] = {}
+        # tag → set of channel indices seen from P44 but not yet imported
+        self._discovered_indices_by_tag: dict[str, set[int]] = {}
 
         reconnect_value = entry.options.get(
             CONF_RECONNECT_INTERVAL,
@@ -337,44 +334,30 @@ class Plan44Coordinator:
             )
             await self.async_forward_entity_state(entity_id, force=True)
 
-        await self._async_republish_inbound_sensors()
-
-    async def _async_republish_inbound_sensors(self) -> None:
-        """Re-register inbound sensor virtual devices with P44 on connect/reconnect."""
-        for subentry in getattr(self.entry, "subentries", {}).values():
-            if getattr(subentry, "subentry_type", None) != SUBENTRY_TYPE_P44_SENSOR:
-                continue
-            data = getattr(subentry, "data", None)
-            if not isinstance(data, Mapping):
-                continue
-            spec = inbound_sensor_spec(data)
-            if spec is None:
-                continue
-            try:
-                await self.client.async_send(build_init_message(spec))
-            except Exception as err:
-                _LOGGER.warning(
-                    "Failed to register inbound sensor '%s' with plan44: %s",
-                    data.get(ATTR_P44_TAG),
-                    err,
-                )
-
     # ------------------------------------------------------------------
-    # Inbound sensor callback registry (P44 → HA sensor entities)
+    # Inbound channel callback registry (P44 physical device → HA entities)
+    #
+    # Physical devices already exist on plan44, so HA never registers them —
+    # it only listens for the sensor/input values plan44 pushes.
     # ------------------------------------------------------------------
 
-    def register_inbound_sensor_callback(
+    def register_inbound_callback(
         self,
+        message: str,
         tag: str,
         index: int,
-        callback: InboundSensorCallback,
+        callback: InboundChannelCallback,
     ) -> None:
-        """Register a callback that fires when P44 pushes a sensor value."""
-        self._inbound_sensor_callbacks[(tag, index)] = callback
+        """Register a callback for a P44-pushed channel value.
 
-    def unregister_inbound_sensor_callback(self, tag: str, index: int) -> None:
-        """Remove the callback for a specific (tag, index) pair."""
-        self._inbound_sensor_callbacks.pop((tag, index), None)
+        message is the P44 message type ("sensor" or "input"); tag is the
+        plan44 device id; index selects the channel.
+        """
+        self._inbound_callbacks[(message, tag, index)] = callback
+
+    def unregister_inbound_callback(self, message: str, tag: str, index: int) -> None:
+        """Remove the callback for a specific (message, tag, index) tuple."""
+        self._inbound_callbacks.pop((message, tag, index), None)
 
     async def async_forward_entity_state(
         self,
@@ -417,9 +400,9 @@ class Plan44Coordinator:
 
         tag = str(tag_raw)
 
-        # Dispatch inbound sensor messages (P44 physical device → HA sensor entity)
-        if msg.get("message") == "sensor":
-            self.dispatch_inbound_sensor(msg, tag)
+        # Dispatch inbound channel messages (P44 physical device → HA entity)
+        if msg.get("message") in _INBOUND_MESSAGE_TYPES:
+            self.dispatch_inbound_channel(msg, tag)
 
         # Reverse control for exported virtual devices (P44 → HA service calls)
         entity_id = self._entity_by_uid.get(tag)
@@ -515,13 +498,14 @@ class Plan44Coordinator:
             return None
         return entry.platform
 
-    def dispatch_inbound_sensor(self, msg: dict[str, Any], tag: str) -> None:
-        """Fire the registered callback when P44 pushes a sensor value.
+    def dispatch_inbound_channel(self, msg: dict[str, Any], tag: str) -> None:
+        """Fire the registered callback when P44 pushes a sensor/input value.
 
-        If no entity is listening for this (tag, index) pair yet, fire a
-        persistent HA notification so the user knows a new sensor is available
-        and can add it as a 'P44 Sensor' subentry.
+        If no entity is listening for this (message, tag, index) yet, raise a
+        persistent HA notification so the user can import the device as a
+        'P44 device' subentry — without reinstalling the integration.
         """
+        message = str(msg.get("message"))
         value_raw = msg.get("value")
         if value_raw is None:
             return
@@ -529,36 +513,39 @@ class Plan44Coordinator:
             value = float(value_raw)
         except ValueError, TypeError:
             _LOGGER.warning(
-                "plan44 sent an invalid sensor value for tag '%s': %s",
+                "plan44 sent an invalid %s value for tag '%s': %s",
+                message,
                 tag,
                 value_raw,
             )
             return
         index = int(msg.get("index", 0))
-        cb = self._inbound_sensor_callbacks.get((tag, index))
+        cb = self._inbound_callbacks.get((message, tag, index))
         if cb is not None:
             cb(value)
         else:
-            self._notify_discovered_sensor(tag, index, value)
+            self._notify_discovered_channel(tag, index)
 
-    def _notify_discovered_sensor(self, tag: str, index: int, value: float) -> None:
-        """Raise a persistent notification when P44 pushes data for an unregistered tag.
+    def _notify_discovered_channel(self, tag: str, index: int) -> None:
+        """Notify the user that P44 is pushing data for an unimported device.
 
-        This lets the user know a new physical device is sending data and they
-        can import it via the 'P44 Sensor' subentry without reinstalling the
-        integration.  HA deduplicates notifications by ID, so repeated pushes
-        for the same (tag, index) simply refresh the existing notification.
+        Indices seen for a tag are accumulated so the notification can hint at
+        which template fits.  HA dedupes by notification_id, so repeated pushes
+        just refresh the existing notification.
         """
-        notification_id = f"{DOMAIN}_{self.entry.entry_id}_discovery_{tag}_{index}"
-        title = "plan44: Neuer Sensor erkannt"
+        seen = self._discovered_indices_by_tag.setdefault(tag, set())
+        seen.add(index)
+        indices = ", ".join(str(i) for i in sorted(seen))
+        notification_id = f"{DOMAIN}_{self.entry.entry_id}_discovery_{tag}"
+        title = "plan44: Neues Gerät erkannt"
         message = (
-            f"plan44 sendet Daten für einen noch nicht konfigurierten Sensor:\n\n"
+            f"plan44 sendet Daten für ein noch nicht importiertes Gerät:\n\n"
             f"- **Tag:** `{tag}`\n"
-            f"- **Index:** `{index}`\n"
-            f"- **Aktueller Wert:** `{value}`\n\n"
-            f"Füge unter *Einstellungen → Integrationen → plan44* einen neuen "
-            f"**P44 Sensor**-Eintrag mit diesem Tag und Index hinzu, um den "
-            f"Sensor in Home Assistant anzuzeigen."
+            f"- **Bisher gesehene Kanäle (Index):** `{indices}`\n\n"
+            f"Importiere es unter *Einstellungen → Geräte & Dienste → plan44* "
+            f"über **+ P44-Gerät importieren**: gib diesen Tag ein und wähle das "
+            f"passende Geräteprofil. Alle Kanäle werden dann automatisch als "
+            f"Entitäten angelegt."
         )
         persistent_notification.async_create(
             hass=self.hass,
@@ -567,10 +554,9 @@ class Plan44Coordinator:
             notification_id=notification_id,
         )
         _LOGGER.info(
-            "Discovered new plan44 sensor push — tag=%s index=%s value=%s",
+            "Discovered unimported plan44 device — tag=%s seen indices=%s",
             tag,
-            index,
-            value,
+            indices,
         )
 
     @staticmethod
@@ -578,27 +564,3 @@ class Plan44Coordinator:
         if isinstance(value, list):
             return {item.strip().lower() for item in value if item.strip()}
         return {item.strip().lower() for item in value.split(",") if item.strip()}
-
-
-# ---------------------------------------------------------------------------
-# Module-level helper (no coordinator state needed)
-# ---------------------------------------------------------------------------
-
-
-def inbound_sensor_spec(data: Mapping[str, Any]) -> VirtualDeviceSpec | None:
-    """Build a VirtualDeviceSpec for a p44_sensor subentry, or None if invalid."""
-    tag = data.get(ATTR_P44_TAG)
-    if not isinstance(tag, str) or not tag:
-        return None
-    name = data.get(ATTR_NAME)
-    unit = data.get(ATTR_UNIT)
-    return VirtualDeviceSpec(
-        device_id=tag,
-        name=name if isinstance(name, str) and name else tag,
-        kind="sensor",
-        unit=unit if isinstance(unit, str) and unit else None,
-        sensor_type=data.get(ATTR_SENSOR_TYPE),
-        sensor_min=data.get(ATTR_SENSOR_MIN),
-        sensor_max=data.get(ATTR_SENSOR_MAX),
-        sensor_resolution=data.get(ATTR_SENSOR_RESOLUTION),
-    )

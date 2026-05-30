@@ -51,11 +51,15 @@
   },
   "config_subentries": {
     "virtual_device": {
-      "flow_title": "Virtual device",
+      "initiate_flow": {
+        "user": "Add virtual device",
+        "reconfigure": "Edit virtual device"
+      },
+      "entry_type": "Virtual device",
       "step": {
         "user": {
           "title": "Add virtual device",
-          "description": "Create a virtual device managed directly from the UI.",
+          "description": "Export a Home Assistant entity to plan44 for remote control and monitoring.",
           "data": {
             "kind": "Virtual device type",
             "entity_id": "Source entity",
@@ -75,16 +79,45 @@
           }
         }
       }
-    }
-  },
-  "subentries": {
-    "virtual_device": {
-      "name": "Add Virtual Device",
-      "description": "Add a virtual device to export a Home Assistant entity to plan44 for remote control and monitoring."
     },
-    "p44_sensor": {
-      "name": "Add P44 Sensor",
-      "description": "Import a physical sensor registered on the plan44 gateway (e.g. EnOcean D2-14-41 acceleration channels) as a Home Assistant sensor entity."
+    "p44_device": {
+      "initiate_flow": {
+        "user": "Import P44 device",
+        "reconfigure": "Edit P44 device"
+      },
+      "entry_type": "P44 device",
+      "step": {
+        "user": {
+          "title": "Import a plan44 device",
+          "description": "Import a physical device registered on the plan44 gateway (e.g. an EnOcean multisensor that Digitalstrom does not expose). Pick the matching profile and all of its channels become Home Assistant entities.\n\nThe tag is the plan44 device id (e.g. `enoceanaddress:00123456`). When plan44 pushes data for an unknown device, a notification shows you its tag.",
+          "data": {
+            "p44_tag": "Plan44 device tag",
+            "template": "Device profile",
+            "name": "Display name"
+          }
+        },
+        "custom": {
+          "title": "Single sensor details",
+          "description": "Configure the one channel to import.",
+          "data": {
+            "p44_index": "Channel index",
+            "platform": "Entity type",
+            "unit": "Unit of measurement",
+            "device_class": "Device class (optional)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit P44 device",
+          "data": {
+            "p44_tag": "Plan44 device tag",
+            "template": "Device profile",
+            "name": "Display name"
+          }
+        }
+      },
+      "error": {
+        "p44_tag_required": "A plan44 device tag is required."
+      }
     }
   }
 }
