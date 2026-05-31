@@ -20,7 +20,7 @@ Typical Home Assistant config locations are:
 
 ## Recommended approach
 
-Home Assistant officially recommends **packages** if you want to keep all configuration for a subsystem together. Packages can bundle configuration from many integrations in one place, and the official docs explicitly recommend creating a `packages` folder and loading it from `configuration.yaml`. `!include_dir_named packages` is the most convenient approach because the package files keep the same indentation style as `configuration.yaml`, and Home Assistant notes that this method also supports YAML files in subfolders. citeturn324374view0turn324374view1
+Home Assistant officially recommends **packages** if you want to keep all configuration for a subsystem together. Packages can bundle configuration from many integrations in one place, and the official docs explicitly recommend creating a `packages` folder and loading it from `configuration.yaml`. `!include_dir_named packages` is the most convenient approach because the package files keep the same indentation style as `configuration.yaml`, and Home Assistant notes that this method also supports YAML files in subfolders. 
 
 For `plan44`, the cleanest documented setup is:
 
@@ -28,7 +28,7 @@ For `plan44`, the cleanest documented setup is:
 - for example: `packages/plan44_virtual_devices.yaml`
 - or, if you prefer a grouped structure: `packages/plan44/virtual_devices.yaml`
 
-Both are valid with `!include_dir_named packages`, as long as package file names remain globally unique across the packages tree. Home Assistant's package docs call this out explicitly. citeturn324374view0
+Both are valid with `!include_dir_named packages`, as long as package file names remain globally unique across the packages tree. Home Assistant's package docs call this out explicitly. 
 
 ## Minimal recommended setup
 
@@ -41,7 +41,7 @@ homeassistant:
   packages: !include_dir_named packages
 ```
 
-This is the officially documented package-folder approach. citeturn324374view0
+This is the officially documented package-folder approach. 
 
 ### Directory structure
 
@@ -91,7 +91,7 @@ template:
 
 ## Alternative grouped structure
 
-If you want more structure, Home Assistant packages also support subfolders. The docs state that `!include_dir_named packages` loads YAML files in the packages folder **and its subfolders**. citeturn324374view0
+If you want more structure, Home Assistant packages also support subfolders. The docs state that `!include_dir_named packages` loads YAML files in the packages folder **and its subfolders**. 
 
 Example:
 
@@ -112,11 +112,11 @@ homeassistant:
   packages: !include_dir_named packages
 ```
 
-The main thing to remember is that package file names must still be globally unique. For example, do not have two different files both named `helpers.yaml` in different subfolders. Home Assistant documents this requirement for `!include_dir_named packages`. citeturn324374view0
+The main thing to remember is that package file names must still be globally unique. For example, do not have two different files both named `helpers.yaml` in different subfolders. Home Assistant documents this requirement for `!include_dir_named packages`. 
 
 ## When to use `!include_dir_merge_named`
 
-Home Assistant also documents `!include_dir_merge_named`, but for packages it is usually less ergonomic because the package name must be present inside the file and indentation becomes less copy/paste friendly. The package docs explicitly point out that `!include_dir_named` is usually easier because it uses the same indentation style as `configuration.yaml`. citeturn324374view0
+Home Assistant also documents `!include_dir_merge_named`, but for packages it is usually less ergonomic because the package name must be present inside the file and indentation becomes less copy/paste friendly. The package docs explicitly point out that `!include_dir_named` is usually easier because it uses the same indentation style as `configuration.yaml`. 
 
 For most `plan44` users, the simplest and clearest option is therefore:
 
