@@ -88,6 +88,22 @@ class DiscoveredDevice:
     channels: tuple[DiscoveredChannel, ...] = field(default_factory=tuple)
 
 
+def default_web_url(host: str | None) -> str | None:
+    """Derive the web API base URL from the connection host (https on 443).
+
+    The web UI lives on the same host as the TCP API, just over HTTPS, so the
+    user only needs to supply credentials — the URL defaults to ``https://<host>``.
+    """
+    if not host:
+        return None
+    host = str(host).strip()
+    if not host:
+        return None
+    if host.startswith(("http://", "https://")):
+        return host.rstrip("/")
+    return f"https://{host}"
+
+
 class Plan44WebApiError(Exception):
     """Raised when the web API cannot be queried."""
 

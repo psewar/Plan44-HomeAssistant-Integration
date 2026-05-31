@@ -39,16 +39,16 @@
     "step": {
       "init": {
         "title": "Plan44-Optionen",
-        "description": "Die Web-API-Felder (URL + Login der plan44-Web-Oberfläche) ermöglichen den Import physischer Geräte aus einer Live-Liste und das Auslesen ihrer Werte.",
+        "description": "Trage Web-API-Benutzer + Passwort ein, um physische Geräte aus einer Live-Liste zu importieren. Die URL wird automatisch aus dem konfigurierten Host abgeleitet (https://<host>); nur setzen, falls die Web-Oberfläche woanders liegt.",
         "data": {
           "auto_republish": "Virtuelle Geräte beim Start automatisch neu veröffentlichen",
           "reverse_enabled": "Umgekehrte Steuerung von plan44 zu Home Assistant aktivieren",
           "reconnect_interval": "Wiederverbindungsintervall in Sekunden",
           "blocklist_integrations": "Blockierte Integrationen (durch Komma getrennt)",
           "blocklist_entity_id_prefixes": "Blockierte entity_id-Präfixe (durch Komma getrennt)",
-          "web_url": "Web-API-URL (z.B. https://deine-bridge)",
           "web_user": "Web-API-Benutzer",
           "web_password": "Web-API-Passwort",
+          "web_url": "Web-API-URL (optional — Standard: https://<host>)",
           "web_poll_interval": "Abfrageintervall der Geräte (Sekunden)"
         }
       }
@@ -128,7 +128,9 @@
         }
       },
       "error": {
-        "p44_tag_required": "Ein plan44-Geräte-Tag ist erforderlich."
+        "p44_tag_required": "Ein plan44-Geräte-Tag ist erforderlich.",
+        "web_api_unreachable": "Die plan44-Web-API ist nicht erreichbar — prüfe Web-Benutzer/Passwort (und URL) in den Integrations-Optionen. Du kannst unten weiterhin ein Gerät manuell eingeben.",
+        "web_api_no_devices": "Die plan44-Web-API hat keine importierbaren Geräte zurückgegeben. Du kannst unten ein Gerät manuell eingeben."
       }
     }
   }
