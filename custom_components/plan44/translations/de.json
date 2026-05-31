@@ -39,7 +39,7 @@
     "step": {
       "init": {
         "title": "Plan44-Optionen",
-        "description": "Trage Web-API-Benutzer + Passwort ein, um physische Geräte aus einer Live-Liste zu importieren. Die Web-Oberfläche wird unter https://<host> erreicht (mit dem beim Einrichten angegebenen Host).",
+        "description": "Trage Web-API-Benutzer + Passwort ein, um physische Geräte aus einer Live-Liste zu importieren. Die Web-Oberfläche wird per HTTPS am beim Einrichten angegebenen Host erreicht.",
         "data": {
           "auto_republish": "Virtuelle Geräte beim Start automatisch neu veröffentlichen",
           "reverse_enabled": "Umgekehrte Steuerung von plan44 zu Home Assistant aktivieren",
