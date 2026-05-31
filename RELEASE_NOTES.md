@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.5.3 — 2026-05-31
+
+- **Fix "Translation error: UNCLOSED_TAG" when opening the plan44 options.** The
+  options description contained `https://<host>`, and Home Assistant's translation
+  renderer treats `<host>` as an unclosed rich-text tag. Reworded without angle
+  brackets.
+- Added a unit test that guards every translation string against tag-like
+  `<...>` markup, so this class of bug can't reach the UI again.
+
 ## 0.5.2 — 2026-05-31
 
 - **Removed the "Web API URL" option entirely.** The web UI is always reached at
