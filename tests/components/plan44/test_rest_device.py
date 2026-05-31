@@ -25,7 +25,6 @@ from custom_components.plan44.const import (
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
     CONF_WEB_PASSWORD,
-    CONF_WEB_URL,
     CONF_WEB_USER,
     DEFAULT_AUTO_REPUBLISH,
     DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
@@ -47,7 +46,7 @@ _DATA = {
     CONF_RECONNECT_INTERVAL: DEFAULT_RECONNECT_INTERVAL,
     CONF_BLOCKLIST_INTEGRATIONS: DEFAULT_BLOCKLIST_INTEGRATIONS,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES: DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
-    CONF_WEB_URL: "https://bridge.example",
+    # No web_url — it is derived from the host (https://127.0.0.1).
     CONF_WEB_USER: "user",
     CONF_WEB_PASSWORD: "secret",
 }
@@ -148,26 +147,12 @@ async def test_rest_device_values_reflect_poll(
 async def test_web_api_url_derived_from_host(
     hass: HomeAssistant, mock_plan44_client: Any
 ) -> None:
-    """With only host + web user/password (no explicit web_url), the web API is
-    still built (URL derived as https://<host>) and entities are created."""
-    data = {k: v for k, v in _DATA.items() if k != CONF_WEB_URL}
-    entry = MockConfigEntry(domain=DOMAIN, title="plan44", data=data, options={})
-    entry.add_to_hass(hass)
-    subentry = ConfigSubentry(
-        subentry_type=SUBENTRY_TYPE_P44_DEVICE,
-        title="Valve",
-        data=MappingProxyType(
-            {
-                ATTR_DSUID: _DSUID,
-                ATTR_NAME: "Valve",
-                ATTR_MODEL: "Micropelt (A5-20-06)",
-                ATTR_CHANNELS: _CHANNELS,
-            }
-        ),
-        unique_id=None,
-    )
-    hass.config_entries.async_add_subentry(entry, subentry)
+    """The web API URL is derived from the host (no separate URL field).
 
+    _DATA has no web_url, only host=127.0.0.1, so successful setup proves the
+    URL was derived as https://127.0.0.1.
+    """
+    entry = _make_entry(hass)
     with patch(
         "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
         new=AsyncMock(return_value=_STATES),
@@ -175,12 +160,9 @@ async def test_web_api_url_derived_from_host(
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    assert entry.runtime_data.device_coordinator is not None
-    registry = async_get_entity_registry(hass)
-    entities = [
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
-    ]
-    assert len(entities) == 2
+    web_api = entry.runtime_data.web_api
+    assert web_api is not None
+    assert web_api.base_url == "https://127.0.0.1"
 
 
 async def test_rest_device_unavailable_without_web_api_data(

@@ -119,6 +119,10 @@ class Plan44WebApi:
         self._user = user
         self._password = password
 
+    @property
+    def base_url(self) -> str:
+        return self._base
+
     async def async_list_devices(self) -> list[DiscoveredDevice]:
         payload = await self._hass.async_add_executor_job(
             self._request_sync, _DESCRIPTIONS_QUERY
@@ -132,10 +136,6 @@ class Plan44WebApi:
             self._request_sync, _STATES_QUERY
         )
         return parse_states(payload, dsuids)
-
-    async def async_validate(self) -> None:
-        """Raise Plan44WebApiError if the API is not reachable/usable."""
-        await self._hass.async_add_executor_job(self._request_sync, _DESCRIPTIONS_QUERY)
 
     # -- blocking implementation (runs in executor) ------------------------
 

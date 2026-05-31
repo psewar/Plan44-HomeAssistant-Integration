@@ -31,7 +31,6 @@ from .const import (
     CONF_VDC_MODEL_NAME,
     CONF_WEB_PASSWORD,
     CONF_WEB_POLL_INTERVAL,
-    CONF_WEB_URL,
     CONF_WEB_USER,
     DEFAULT_AUTO_REPUBLISH,
     DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
@@ -120,10 +119,6 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
                     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
                     DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
                 ),
-            ): str,
-            vol.Optional(
-                CONF_WEB_URL,
-                default=current.get(CONF_WEB_URL, ""),
             ): str,
             vol.Optional(
                 CONF_WEB_USER,
@@ -599,7 +594,7 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         password = merged.get(CONF_WEB_PASSWORD)
         if not (user and password):
             return None
-        url = merged.get(CONF_WEB_URL) or default_web_url(merged.get(CONF_HOST))
+        url = default_web_url(merged.get(CONF_HOST))
         if not url:
             return None
         return Plan44WebApi(self.hass, str(url), str(user), str(password))
