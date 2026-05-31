@@ -39,7 +39,7 @@
     "step": {
       "init": {
         "title": "plan44 options",
-        "description": "Add a web API user + password to import physical devices from a live list. The web UI is reached at https://<host> using the host you configured during setup.",
+        "description": "Add a web API user + password to import physical devices from a live list. The web UI is reached over HTTPS at the host you configured during setup.",
         "data": {
           "auto_republish": "Automatically republish virtual devices on startup",
           "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
