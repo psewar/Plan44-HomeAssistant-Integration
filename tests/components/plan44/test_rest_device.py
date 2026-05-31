@@ -145,6 +145,44 @@ async def test_rest_device_values_reflect_poll(
     assert bat_state.state == "off"  # low_battery False
 
 
+async def test_web_api_url_derived_from_host(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """With only host + web user/password (no explicit web_url), the web API is
+    still built (URL derived as https://<host>) and entities are created."""
+    data = {k: v for k, v in _DATA.items() if k != CONF_WEB_URL}
+    entry = MockConfigEntry(domain=DOMAIN, title="plan44", data=data, options={})
+    entry.add_to_hass(hass)
+    subentry = ConfigSubentry(
+        subentry_type=SUBENTRY_TYPE_P44_DEVICE,
+        title="Valve",
+        data=MappingProxyType(
+            {
+                ATTR_DSUID: _DSUID,
+                ATTR_NAME: "Valve",
+                ATTR_MODEL: "Micropelt (A5-20-06)",
+                ATTR_CHANNELS: _CHANNELS,
+            }
+        ),
+        unique_id=None,
+    )
+    hass.config_entries.async_add_subentry(entry, subentry)
+
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.runtime_data.device_coordinator is not None
+    registry = async_get_entity_registry(hass)
+    entities = [
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    ]
+    assert len(entities) == 2
+
+
 async def test_rest_device_unavailable_without_web_api_data(
     hass: HomeAssistant, mock_plan44_client: Any
 ) -> None:

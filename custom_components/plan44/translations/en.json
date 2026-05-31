@@ -39,16 +39,16 @@
     "step": {
       "init": {
         "title": "plan44 options",
-        "description": "The web API fields (URL + login of the plan44 web UI) enable importing physical devices from a live list and reading their values.",
+        "description": "Add a web API user + password to import physical devices from a live list. The URL defaults to the host you configured (https://<host>); only set it if the web UI is somewhere else.",
         "data": {
           "auto_republish": "Automatically republish virtual devices on startup",
           "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
           "reconnect_interval": "Reconnect interval in seconds",
           "blocklist_integrations": "Blocked integrations (comma-separated)",
           "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)",
-          "web_url": "Web API URL (e.g. https://your-bridge)",
           "web_user": "Web API user",
           "web_password": "Web API password",
+          "web_url": "Web API URL (optional — defaults to https://<host>)",
           "web_poll_interval": "Device poll interval (seconds)"
         }
       }
@@ -128,7 +128,9 @@
         }
       },
       "error": {
-        "p44_tag_required": "A plan44 device tag is required."
+        "p44_tag_required": "A plan44 device tag is required.",
+        "web_api_unreachable": "Could not reach the plan44 web API — check the web user/password (and URL) in the integration options. You can still enter a device manually below.",
+        "web_api_no_devices": "The plan44 web API returned no importable devices. You can enter a device manually below."
       }
     }
   }

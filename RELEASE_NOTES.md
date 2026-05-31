@@ -1,5 +1,15 @@
 # Release notes
 
+## 0.5.1 — 2026-05-31
+
+- **Web API URL is now derived from the connection host** (`https://<host>`), so
+  importing devices only needs a web user + password in the options — no need to
+  re-enter the URL you already gave during setup. The URL field stays as an
+  optional override.
+- The device picker no longer **silently** falls back to the manual form when the
+  web API is configured but unreachable / returns no devices — it now shows a
+  clear error explaining why.
+
 ## 0.5.0 — 2026-05-31
 
 Device import + quality work, all verified in CI (Ruff, Pyright, unit + Home

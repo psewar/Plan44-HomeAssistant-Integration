@@ -4,12 +4,33 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from custom_components.plan44.web_client import (
     PLATFORM_BINARY_SENSOR,
     PLATFORM_SENSOR,
+    default_web_url,
     parse_devices,
     parse_states,
 )
+
+
+@pytest.mark.parametrize(
+    ("host", "expected"),
+    [
+        ("plan44.local", "https://plan44.local"),
+        ("192.0.2.50", "https://192.0.2.50"),
+        ("  plan44.local  ", "https://plan44.local"),
+        ("https://plan44.local", "https://plan44.local"),
+        ("https://plan44.local/", "https://plan44.local"),
+        ("http://192.0.2.50", "http://192.0.2.50"),
+        (None, None),
+        ("", None),
+        ("   ", None),
+    ],
+)
+def test_default_web_url(host: str | None, expected: str | None) -> None:
+    assert default_web_url(host) == expected
 
 
 def _payload(devices: list[dict[str, Any]]) -> dict[str, Any]:
