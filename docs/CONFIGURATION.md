@@ -78,7 +78,7 @@ data:
 
 ## Recommended Home Assistant structure for virtual devices
 
-If you plan to create multiple virtual devices, Home Assistant packages are the cleanest documented way to keep all related helper/template entities together. Home Assistant documents packages under `homeassistant: packages:` and explicitly recommends a `packages` folder loaded with `!include_dir_named packages`. citeturn324374view0
+If you plan to create multiple virtual devices, Home Assistant packages are the cleanest documented way to keep all related helper/template entities together. Home Assistant documents packages under `homeassistant: packages:` and explicitly recommends a `packages` folder loaded with `!include_dir_named packages`. 
 
 Recommended approach:
 

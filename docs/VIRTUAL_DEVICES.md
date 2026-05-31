@@ -17,7 +17,7 @@ That means you first need a suitable Home Assistant entity, and then you export 
 
 Do **not** add helper or template YAML files to the `plan44` integration repository.
 
-Instead, create a dedicated YAML file in your **Home Assistant configuration directory** and keep all helper entities and template entities for `plan44` there. Home Assistant officially recommends packages for bundling related configuration, and documents `homeassistant: packages: !include_dir_named packages` as the convenient approach for this. The package docs also state that this method loads YAML files in the packages folder and its subfolders. citeturn324374view0
+Instead, create a dedicated YAML file in your **Home Assistant configuration directory** and keep all helper entities and template entities for `plan44` there. Home Assistant officially recommends packages for bundling related configuration, and documents `homeassistant: packages: !include_dir_named packages` as the convenient approach for this. The package docs also state that this method loads YAML files in the packages folder and its subfolders. 
 
 Recommended file name:
 

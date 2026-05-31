@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased (0.5.x)
+## 0.5.0 — 2026-05-31
 
 Device import + quality work, all verified in CI (Ruff, Pyright, unit + Home
 Assistant component tests) and partly against a live P44-DSB-E2 bridge.
