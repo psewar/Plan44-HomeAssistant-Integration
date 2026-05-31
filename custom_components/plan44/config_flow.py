@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -56,7 +57,14 @@ from .device_templates import (
     template_options,
 )
 from .plan44_client import Plan44Client
-from .web_client import DiscoveredDevice, Plan44WebApi, Plan44WebApiError
+from .web_client import (
+    DiscoveredDevice,
+    Plan44WebApi,
+    Plan44WebApiError,
+    default_web_url,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 ConfigDict = dict[str, Any]
 
@@ -587,12 +595,14 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         if api is not None:
             return api
         merged = {**entry.data, **entry.options}
-        url = merged.get(CONF_WEB_URL)
         user = merged.get(CONF_WEB_USER)
         password = merged.get(CONF_WEB_PASSWORD)
-        if url and user and password:
-            return Plan44WebApi(self.hass, str(url), str(user), str(password))
-        return None
+        if not (user and password):
+            return None
+        url = merged.get(CONF_WEB_URL) or default_web_url(merged.get(CONF_HOST))
+        if not url:
+            return None
+        return Plan44WebApi(self.hass, str(url), str(user), str(password))
 
     async def async_step_user(
         self,
@@ -623,10 +633,11 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
 
         try:
             devices = await web_api.async_list_devices()
-        except Plan44WebApiError:
-            return await self.async_step_manual()
+        except Plan44WebApiError as err:
+            _LOGGER.warning("plan44 web API device list failed: %s", err)
+            return await self.async_step_manual(web_error="web_api_unreachable")
         if not devices:
-            return await self.async_step_manual()
+            return await self.async_step_manual(web_error="web_api_no_devices")
 
         self._discovered = {d.dsuid: d for d in devices}
         options = [
@@ -648,8 +659,11 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
     async def async_step_manual(
         self,
         user_input: ConfigDict | None = None,
+        web_error: str | None = None,
     ) -> Any:
         errors: dict[str, str] = {}
+        if web_error:
+            errors["base"] = web_error
 
         if user_input is not None:
             errors = _validate_p44_device(user_input)

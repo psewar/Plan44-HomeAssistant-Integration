@@ -38,7 +38,7 @@ from .coordinator import Plan44Coordinator
 from .device_coordinator import Plan44DeviceCoordinator
 from .plan44_client import Plan44Client
 from .store import Plan44Store
-from .web_client import Plan44WebApi
+from .web_client import Plan44WebApi, default_web_url
 
 PLATFORMS = ["binary_sensor", "sensor"]
 
@@ -166,12 +166,18 @@ async def _async_handle_entry_updated(
 async def _async_setup_web_api(
     hass: HomeAssistant, entry: Plan44ConfigEntry
 ) -> tuple[Plan44WebApi | None, Plan44DeviceCoordinator | None]:
-    """Build the web API client + polling coordinator if web config is present."""
+    """Build the web API client + polling coordinator if web config is present.
+
+    Only a web user + password are required; the URL defaults to ``https://<host>``
+    (the same host entered during setup) unless explicitly overridden.
+    """
     merged = {**entry.data, **entry.options}
-    url = merged.get(CONF_WEB_URL)
     user = merged.get(CONF_WEB_USER)
     password = merged.get(CONF_WEB_PASSWORD)
-    if not (url and user and password):
+    if not (user and password):
+        return None, None
+    url = merged.get(CONF_WEB_URL) or default_web_url(merged.get(CONF_HOST))
+    if not url:
         return None, None
 
     web_api = Plan44WebApi(hass, str(url), str(user), str(password))
