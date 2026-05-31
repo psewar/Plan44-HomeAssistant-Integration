@@ -39,23 +39,32 @@
     "step": {
       "init": {
         "title": "plan44 options",
+        "description": "The web API fields (URL + login of the plan44 web UI) enable importing physical devices from a live list and reading their values.",
         "data": {
           "auto_republish": "Automatically republish virtual devices on startup",
           "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
           "reconnect_interval": "Reconnect interval in seconds",
           "blocklist_integrations": "Blocked integrations (comma-separated)",
-          "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)"
+          "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)",
+          "web_url": "Web API URL (e.g. https://your-bridge)",
+          "web_user": "Web API user",
+          "web_password": "Web API password",
+          "web_poll_interval": "Device poll interval (seconds)"
         }
       }
     }
   },
   "config_subentries": {
     "virtual_device": {
-      "flow_title": "Virtual device",
+      "initiate_flow": {
+        "user": "Add virtual device",
+        "reconfigure": "Edit virtual device"
+      },
+      "entry_type": "Virtual device",
       "step": {
         "user": {
           "title": "Add virtual device",
-          "description": "Create a virtual device managed directly from the UI.",
+          "description": "Export a Home Assistant entity to plan44 for remote control and monitoring.",
           "data": {
             "kind": "Virtual device type",
             "entity_id": "Source entity",
@@ -75,12 +84,52 @@
           }
         }
       }
-    }
-  },
-  "subentries": {
-    "virtual_device": {
-      "name": "Add Virtual Device",
-      "description": "Add a virtual device to export a Home Assistant entity to plan44 for remote control and monitoring."
+    },
+    "p44_device": {
+      "initiate_flow": {
+        "user": "Import P44 device",
+        "reconfigure": "Edit P44 device"
+      },
+      "entry_type": "P44 device",
+      "step": {
+        "pick_device": {
+          "title": "Import a plan44 device",
+          "description": "Pick a device read live from your plan44 bridge. Its channels (sensors and inputs) are imported automatically and polled via the web API.",
+          "data": {
+            "dsuid": "Device"
+          }
+        },
+        "manual": {
+          "title": "Import a plan44 device (manual)",
+          "description": "No web API configured — enter the device manually. The tag is the plan44 device id (e.g. `enoceanaddress:00123456`); pick the matching profile so its channels become Home Assistant entities.",
+          "data": {
+            "p44_tag": "Plan44 device tag",
+            "template": "Device profile",
+            "name": "Display name"
+          }
+        },
+        "custom": {
+          "title": "Single sensor details",
+          "description": "Configure the one channel to import.",
+          "data": {
+            "p44_index": "Channel index",
+            "platform": "Entity type",
+            "unit": "Unit of measurement",
+            "device_class": "Device class (optional)"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit P44 device",
+          "data": {
+            "p44_tag": "Plan44 device tag",
+            "template": "Device profile",
+            "name": "Display name"
+          }
+        }
+      },
+      "error": {
+        "p44_tag_required": "A plan44 device tag is required."
+      }
     }
   }
 }

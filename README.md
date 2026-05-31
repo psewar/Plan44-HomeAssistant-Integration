@@ -1,33 +1,42 @@
 # plan44 for Home Assistant
 
-`plan44` is a custom Home Assistant integration that exports selected Home Assistant entities to plan44 as virtual devices.
+`plan44` is a custom Home Assistant integration that bridges Home Assistant and a
+plan44 (P44-DSB / P44-LC) bridge in **both directions**:
+
+- **Export (Home Assistant → plan44):** publish selected HA entities to plan44 as
+  virtual devices.
+- **Import (plan44 → Home Assistant):** bring physical devices registered on the
+  bridge (e.g. EnOcean sensors that digitalSTROM does not expose) into HA as
+  `sensor` / `binary_sensor` entities.
 
 ## What it does
 
-This integration is intended to complement an existing digitalSTROM to Home Assistant integration.
+This integration complements an existing digitalSTROM → Home Assistant
+integration. A typical setup:
 
-Recommended setup:
-
-- digitalSTROM / dSS -> existing HA integration
-- Home Assistant -> `plan44` -> plan44 -> digitalSTROM
-
-This keeps `plan44` focused on the Home Assistant -> plan44 path.
+- digitalSTROM / dSS → existing HA integration
+- Home Assistant → `plan44` → plan44 (export of HA entities)
+- plan44 → `plan44` → Home Assistant (import of physical devices digitalSTROM
+  doesn't surface, e.g. motion/acceleration)
 
 ## Current scope
 
-Version 1 focuses on:
+**Export (HA → plan44):**
 
-- Home Assistant -> plan44 export
-- bidirectional control for:
-  - `switch`
-  - `light` (on/off + brightness)
-- forward export for:
-  - `sensor`
-  - `binary_sensor`
-- reconnect and republish logic
-- loop protection for reverse commands
+- bidirectional control for `switch` and `light` (on/off + brightness)
+- forward export for `sensor` and `binary_sensor`
+- reconnect and republish logic, loop protection for reverse commands
 - reconfigure flow for changing host/port/model without deleting the config entry
 - diagnostics and system health support
+
+**Import (plan44 → HA):**
+
+- pick a physical device from a live dropdown read from the bridge web API
+- channels (units, device classes) are derived automatically from the device's
+  own descriptions and grouped as one HA device
+- values are read by polling the web vdc JSON API
+- built-in EnOcean device profiles plus a manual fallback; see
+  [Importing plan44 devices](docs/DEVICE_IMPORT.md)
 
 ## Live-verified device matrix
 
@@ -53,8 +62,12 @@ The following mappings have been verified against a real P44 bridge:
 1. Install the custom integration.
 2. Add `plan44` via the Home Assistant UI.
 3. Enter the P44 host, port, and VDC model name.
-4. Create or choose Home Assistant entities that you want to expose to plan44. For YAML-managed helper/template entities, see [Home Assistant YAML structure for virtual devices](docs/HOME_ASSISTANT_YAML.md).
-5. Add those entities as virtual devices from the `plan44` integration UI.
+4. **To export HA entities:** add them as virtual devices from the `plan44`
+   integration UI (**+ Add virtual device**). For YAML-managed helper/template
+   entities, see [Home Assistant YAML structure](docs/HOME_ASSISTANT_YAML.md).
+5. **To import bridge devices:** add the web API URL + login in the integration
+   options, then use **+ Import P44 device** to pick a device. See
+   [Importing plan44 devices](docs/DEVICE_IMPORT.md).
 
 
 ## Home Assistant YAML helpers
@@ -77,9 +90,9 @@ See [docs/HOME_ASSISTANT_YAML.md](docs/HOME_ASSISTANT_YAML.md) for examples.
 ## Documentation
 
 - [Configuration and setup](docs/CONFIGURATION.md)
-- [Configuration and setup](docs/CONFIGURATION.md)
-- [Home Assistant YAML structure for virtual devices](docs/HOME_ASSISTANT_YAML.md)
+- [Importing plan44 devices into Home Assistant](docs/DEVICE_IMPORT.md)
 - [Creating and managing virtual devices](docs/VIRTUAL_DEVICES.md)
+- [Home Assistant YAML structure for virtual devices](docs/HOME_ASSISTANT_YAML.md)
 - [Testing and live verification](docs/TESTING.md)
 - [Architecture and protocol notes](docs/ARCHITECTURE.md)
 
@@ -132,15 +145,20 @@ pip install -r requirements_ha_test.txt
 pip install -e .
 ```
 
-Then run:
+Then run the checks:
 
 ```bash
-pyright
 ruff check .
-pytest tests/unit -q
+ruff format --check .
+pyright
+pytest tests/unit -q                 # core/protocol unit tests
+pytest -c pytest.ha.ini -q           # Home Assistant component tests (Linux/WSL only)
 ```
 
-For live P44 tests, see [Testing and live verification](docs/TESTING.md).
+The Home Assistant component tests require Linux (the HA test tooling imports
+POSIX-only modules such as `fcntl`); on Windows run them under WSL. CI runs all
+of the above. For live P44 tests and more detail, see
+[Testing and live verification](docs/TESTING.md).
 
 ## Notes
 

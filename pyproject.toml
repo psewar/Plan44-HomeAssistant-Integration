@@ -46,6 +46,7 @@ indent-style = "space"
 testpaths = [
   "tests",
 ]
+pythonpath = ["."]
 markers = [
   "live_p44: tests against a real plan44 bridge",
 ]

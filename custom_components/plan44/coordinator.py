@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any, cast
 
+from homeassistant.components import persistent_notification
 from homeassistant.components.light import ATTR_BRIGHTNESS
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, HomeAssistant, callback
@@ -22,6 +23,7 @@ from .const import (
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
     CONF_RECONNECT_INTERVAL,
+    DOMAIN,
     FORWARD_COOLDOWN_SECONDS,
     KIND_SENSOR,
     KIND_SWITCH,
@@ -30,10 +32,17 @@ from .const import (
     REVERSE_COOLDOWN_SECONDS,
     Plan44ConfigEntry,
 )
+from .device_templates import MSG_INPUT, MSG_SENSOR
 from .plan44_client import Plan44Client
 from .plan44_core.models import DeviceCommand
 from .state_mapping import ha_state_to_core
 from .store import ExportRecord, Plan44Store
+
+# Callback invoked with the latest value P44 pushed for an inbound channel.
+InboundChannelCallback = Callable[[float], None]
+
+# P44 message types that carry an inbound channel value, keyed for dispatch.
+_INBOUND_MESSAGE_TYPES = (MSG_SENSOR, MSG_INPUT)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +72,10 @@ class Plan44Coordinator:
         self._last_write_ts_by_entity: dict[str, float] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
         self._startup_sync_unsub: Callable[[], None] | None = None
+        # (message_type, tag, index) → callback for channels pushed by P44 into HA
+        self._inbound_callbacks: dict[tuple[str, str, int], InboundChannelCallback] = {}
+        # tag → set of channel indices seen from P44 but not yet imported
+        self._discovered_indices_by_tag: dict[str, set[int]] = {}
 
         reconnect_value = entry.options.get(
             CONF_RECONNECT_INTERVAL,
@@ -321,6 +334,31 @@ class Plan44Coordinator:
             )
             await self.async_forward_entity_state(entity_id, force=True)
 
+    # ------------------------------------------------------------------
+    # Inbound channel callback registry (P44 physical device → HA entities)
+    #
+    # Physical devices already exist on plan44, so HA never registers them —
+    # it only listens for the sensor/input values plan44 pushes.
+    # ------------------------------------------------------------------
+
+    def register_inbound_callback(
+        self,
+        message: str,
+        tag: str,
+        index: int,
+        callback: InboundChannelCallback,
+    ) -> None:
+        """Register a callback for a P44-pushed channel value.
+
+        message is the P44 message type ("sensor" or "input"); tag is the
+        plan44 device id; index selects the channel.
+        """
+        self._inbound_callbacks[(message, tag, index)] = callback
+
+    def unregister_inbound_callback(self, message: str, tag: str, index: int) -> None:
+        """Remove the callback for a specific (message, tag, index) tuple."""
+        self._inbound_callbacks.pop((message, tag, index), None)
+
     async def async_forward_entity_state(
         self,
         entity_id: str,
@@ -361,6 +399,12 @@ class Plan44Coordinator:
             return
 
         tag = str(tag_raw)
+
+        # Dispatch inbound channel messages (P44 physical device → HA entity)
+        if msg.get("message") in _INBOUND_MESSAGE_TYPES:
+            self.dispatch_inbound_channel(msg, tag)
+
+        # Reverse control for exported virtual devices (P44 → HA service calls)
         entity_id = self._entity_by_uid.get(tag)
         if entity_id is None:
             return
@@ -453,6 +497,67 @@ class Plan44Coordinator:
         if entry is None:
             return None
         return entry.platform
+
+    def dispatch_inbound_channel(self, msg: dict[str, Any], tag: str) -> None:
+        """Fire the registered callback when P44 pushes a sensor/input value.
+
+        If no entity is listening for this (message, tag, index) yet, raise a
+        persistent HA notification so the user can import the device as a
+        'P44 device' subentry — without reinstalling the integration.
+        """
+        message = str(msg.get("message"))
+        value_raw = msg.get("value")
+        if value_raw is None:
+            return
+        try:
+            value = float(value_raw)
+        except ValueError, TypeError:
+            _LOGGER.warning(
+                "plan44 sent an invalid %s value for tag '%s': %s",
+                message,
+                tag,
+                value_raw,
+            )
+            return
+        index = int(msg.get("index", 0))
+        cb = self._inbound_callbacks.get((message, tag, index))
+        if cb is not None:
+            cb(value)
+        else:
+            self._notify_discovered_channel(tag, index)
+
+    def _notify_discovered_channel(self, tag: str, index: int) -> None:
+        """Notify the user that P44 is pushing data for an unimported device.
+
+        Indices seen for a tag are accumulated so the notification can hint at
+        which template fits.  HA dedupes by notification_id, so repeated pushes
+        just refresh the existing notification.
+        """
+        seen = self._discovered_indices_by_tag.setdefault(tag, set())
+        seen.add(index)
+        indices = ", ".join(str(i) for i in sorted(seen))
+        notification_id = f"{DOMAIN}_{self.entry.entry_id}_discovery_{tag}"
+        title = "plan44: Neues Gerät erkannt"
+        message = (
+            f"plan44 sendet Daten für ein noch nicht importiertes Gerät:\n\n"
+            f"- **Tag:** `{tag}`\n"
+            f"- **Bisher gesehene Kanäle (Index):** `{indices}`\n\n"
+            f"Importiere es unter *Einstellungen → Geräte & Dienste → plan44* "
+            f"über **+ P44-Gerät importieren**: gib diesen Tag ein und wähle das "
+            f"passende Geräteprofil. Alle Kanäle werden dann automatisch als "
+            f"Entitäten angelegt."
+        )
+        persistent_notification.async_create(
+            hass=self.hass,
+            message=message,
+            title=title,
+            notification_id=notification_id,
+        )
+        _LOGGER.info(
+            "Discovered unimported plan44 device — tag=%s seen indices=%s",
+            tag,
+            indices,
+        )
 
     @staticmethod
     def _parse_csv(value: str | list[str]) -> set[str]:

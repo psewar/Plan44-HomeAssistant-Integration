@@ -20,6 +20,11 @@ from .const import (
     CONF_PORT,
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
+    CONF_WEB_PASSWORD,
+    CONF_WEB_POLL_INTERVAL,
+    CONF_WEB_URL,
+    CONF_WEB_USER,
+    DEFAULT_WEB_POLL_INTERVAL,
     DOMAIN,
     SERVICE_CREATE_VIRTUAL_DEVICE,
     SERVICE_PUSH_ENTITY_STATE,
@@ -30,8 +35,12 @@ from .const import (
     Plan44RuntimeData,
 )
 from .coordinator import Plan44Coordinator
+from .device_coordinator import Plan44DeviceCoordinator
 from .plan44_client import Plan44Client
 from .store import Plan44Store
+from .web_client import Plan44WebApi
+
+PLATFORMS = ["binary_sensor", "sensor"]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,6 +163,30 @@ async def _async_handle_entry_updated(
     await runtime.coordinator.async_sync_runtime_exports()
 
 
+async def _async_setup_web_api(
+    hass: HomeAssistant, entry: Plan44ConfigEntry
+) -> tuple[Plan44WebApi | None, Plan44DeviceCoordinator | None]:
+    """Build the web API client + polling coordinator if web config is present."""
+    merged = {**entry.data, **entry.options}
+    url = merged.get(CONF_WEB_URL)
+    user = merged.get(CONF_WEB_USER)
+    password = merged.get(CONF_WEB_PASSWORD)
+    if not (url and user and password):
+        return None, None
+
+    web_api = Plan44WebApi(hass, str(url), str(user), str(password))
+    interval = int(merged.get(CONF_WEB_POLL_INTERVAL, DEFAULT_WEB_POLL_INTERVAL))
+    device_coordinator = Plan44DeviceCoordinator(hass, entry, web_api, interval)
+    try:
+        await device_coordinator.async_config_entry_first_refresh()
+    except ConfigEntryNotReady:
+        # Web API unreachable now — keep going; the coordinator will retry and
+        # entities stay 'unknown' until a poll succeeds. The push/export paths
+        # do not depend on the web API.
+        _LOGGER.warning("plan44 web API not reachable yet; will retry polling")
+    return web_api, device_coordinator
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
     store = Plan44Store(hass, entry)
     await store.async_load()
@@ -202,11 +235,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
     except Exception as err:
         raise ConfigEntryNotReady(f"Unable to connect to plan44: {err}") from err
 
+    web_api, device_coordinator = await _async_setup_web_api(hass, entry)
+
     entry.runtime_data = Plan44RuntimeData(
         client=client,
         coordinator=coordinator,
         store=store,
+        web_api=web_api,
+        device_coordinator=device_coordinator,
     )
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     entry.async_on_unload(entry.add_update_listener(_async_handle_entry_updated))
     entry.async_on_unload(
@@ -216,5 +255,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
+    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     await entry.runtime_data.coordinator.async_shutdown()
     return True
