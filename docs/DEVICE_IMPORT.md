@@ -21,8 +21,9 @@ updated at the configured poll interval (default 30 s), not instantly.
 
 ## 1. Configure the web API (once)
 
-Open **Settings → Devices & Services → plan44 → Configure** and fill in the
-web API fields (URL + web UI login + poll interval). See
+Open **Settings → Devices & Services → plan44 → Configure** and enter the bridge
+web UI **user + password** (and optionally the poll interval). The URL is derived
+from the host you already configured (`https://<host>`). See
 [Configuration](CONFIGURATION.md#web-api-for-importing-devices) for details.
 
 ## 2. Import a device

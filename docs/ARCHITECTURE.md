@@ -49,7 +49,7 @@ over the TCP external device API (port 8999) by `plan44_client` / `coordinator`.
 ### Import — plan44 → Home Assistant
 
 Physical bridge devices are read over the bridge's **web vdc JSON API**
-(`POST <web_url>/api/json/vdc`, HTTP Digest, self-signed TLS accepted):
+(`POST https://<host>/api/json/vdc`, HTTP Digest, self-signed TLS accepted):
 
 1. The config flow calls `web_client.async_list_devices()` to populate the device
    picker and derive HA channel specs from each device's `sensorDescriptions` /
