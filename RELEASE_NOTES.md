@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.5.2 — 2026-05-31
+
+- **Removed the "Web API URL" option entirely.** The web UI is always reached at
+  `https://<host>` using the host entered during setup, so importing devices only
+  needs a web user + password — the redundant URL field is gone.
+- Internal clean-up that came with it: dropped the now-unused `web_url`
+  config key and a dead `Plan44WebApi.async_validate` method.
+
 ## 0.5.1 — 2026-05-31
 
 - **Web API URL is now derived from the connection host** (`https://<host>`), so
@@ -20,8 +28,8 @@ Assistant component tests) and partly against a live P44-DSB-E2 bridge.
 - **Live device picker:** when the bridge web API is configured, pick a device
   from a dropdown read live from the bridge; channels (units, device classes)
   are derived automatically and grouped as one HA device.
-- **Web vdc JSON API client** + polling coordinator (`web_url` / `web_user` /
-  `web_password` / poll interval in the options flow). Self-signed TLS accepted.
+- **Web vdc JSON API client** + polling coordinator (web user / password / poll
+  interval in the options flow). Self-signed TLS accepted.
 - **Built-in EnOcean device profiles** (D2-14-40/41, D2-14-30, A5-20-01/06,
   A5-10-12, A5-07-01, D5-00-01) plus smart-plug metering and weather, with a
   manual single-channel fallback.

@@ -22,7 +22,6 @@ from .const import (
     CONF_VDC_MODEL_NAME,
     CONF_WEB_PASSWORD,
     CONF_WEB_POLL_INTERVAL,
-    CONF_WEB_URL,
     CONF_WEB_USER,
     DEFAULT_WEB_POLL_INTERVAL,
     DOMAIN,
@@ -176,7 +175,7 @@ async def _async_setup_web_api(
     password = merged.get(CONF_WEB_PASSWORD)
     if not (user and password):
         return None, None
-    url = merged.get(CONF_WEB_URL) or default_web_url(merged.get(CONF_HOST))
+    url = default_web_url(merged.get(CONF_HOST))
     if not url:
         return None, None
 

@@ -23,8 +23,9 @@ CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_BLOCKLIST_INTEGRATIONS = "blocklist_integrations"
 CONF_BLOCKLIST_ENTITY_ID_PREFIXES = "blocklist_entity_id_prefixes"
 
-# Web vdc JSON API (device discovery + REST value polling)
-CONF_WEB_URL = "web_url"
+# Web vdc JSON API (device discovery + REST value polling).
+# The URL is always derived from the connection host (https://<host>), so only
+# credentials are configurable.
 CONF_WEB_USER = "web_user"
 CONF_WEB_PASSWORD = "web_password"
 CONF_WEB_POLL_INTERVAL = "web_poll_interval"

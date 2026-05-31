@@ -52,13 +52,12 @@ These are available in the options flow after the integration is added:
 
 ### Web API (for importing devices)
 
-To import physical devices and read their values, the integration needs access to the bridge's web vdc JSON API. Set these in the options flow:
+To import physical devices and read their values, the integration needs the bridge web UI login. Set these in the options flow:
 
-- **Web API URL** — the bridge web UI URL, e.g. `https://192.0.2.50` or `https://plan44.local`
 - **Web API user** / **Web API password** — the bridge web UI login (HTTP Digest)
 - **Device poll interval (seconds)** — how often imported device values are read (default `30`)
 
-The bridge's self-signed TLS certificate is accepted automatically. Changing any option reloads the entry so the new settings take effect immediately. Without the web API configured, the device picker falls back to a manual entry form.
+There is no separate URL field: the web UI is reached at `https://<host>` using the host you already entered during setup. The bridge's self-signed TLS certificate is accepted automatically. Changing any option reloads the entry so the new settings take effect immediately. Without the web credentials configured, the device picker falls back to a manual entry form.
 
 ## Multiple config entries
 
