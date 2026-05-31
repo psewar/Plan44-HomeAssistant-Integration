@@ -22,20 +22,27 @@ Use only the hostname or IP address. Do **not** use a URL like `https://example`
 Correct:
 
 ```text
-utgard.gothrist.ch
-192.168.1.50
+plan44.local
+192.0.2.50
 ```
 
 Wrong:
 
 ```text
-https://utgard.gothrist.ch
-http://192.168.1.50
+https://plan44.local
+http://192.0.2.50
 ```
+
+## What this integration does
+
+It works in **two directions**, both managed as child items (config subentries) of one `plan44` entry:
+
+- **Export (Home Assistant → plan44)** — publish HA entities as plan44 *virtual devices*. See [Creating and managing virtual devices](VIRTUAL_DEVICES.md).
+- **Import (plan44 → Home Assistant)** — bring physical devices registered on the bridge (e.g. EnOcean sensors that digitalSTROM does not expose) into HA as `sensor` / `binary_sensor` entities. See [Importing plan44 devices](DEVICE_IMPORT.md).
 
 ## Optional settings
 
-The integration also supports:
+These are available in the options flow after the integration is added:
 
 - **Automatically republish virtual devices on startup**
 - **Enable reverse control from plan44 to Home Assistant**
@@ -43,7 +50,15 @@ The integration also supports:
 - **Blocked integrations**
 - **Blocked entity ID prefixes**
 
-These are available in the options flow after the integration is added.
+### Web API (for importing devices)
+
+To import physical devices and read their values, the integration needs access to the bridge's web vdc JSON API. Set these in the options flow:
+
+- **Web API URL** — the bridge web UI URL, e.g. `https://192.0.2.50` or `https://plan44.local`
+- **Web API user** / **Web API password** — the bridge web UI login (HTTP Digest)
+- **Device poll interval (seconds)** — how often imported device values are read (default `30`)
+
+The bridge's self-signed TLS certificate is accepted automatically. Changing any option reloads the entry so the new settings take effect immediately. Without the web API configured, the device picker falls back to a manual entry form.
 
 ## Multiple config entries
 
