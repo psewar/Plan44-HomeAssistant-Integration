@@ -1,5 +1,28 @@
 # Release notes
 
+## Unreleased (0.5.x)
+
+Device import + quality work, all verified in CI (Ruff, Pyright, unit + Home
+Assistant component tests) and partly against a live P44-DSB-E2 bridge.
+
+- **Import physical plan44 devices into Home Assistant** as `sensor` /
+  `binary_sensor` entities (new `p44_device` config subentry, new platforms).
+- **Live device picker:** when the bridge web API is configured, pick a device
+  from a dropdown read live from the bridge; channels (units, device classes)
+  are derived automatically and grouped as one HA device.
+- **Web vdc JSON API client** + polling coordinator (`web_url` / `web_user` /
+  `web_password` / poll interval in the options flow). Self-signed TLS accepted.
+- **Built-in EnOcean device profiles** (D2-14-40/41, D2-14-30, A5-20-01/06,
+  A5-10-12, A5-07-01, D5-00-01) plus smart-plug metering and weather, with a
+  manual single-channel fallback.
+- **UI fix:** the subentry “+” buttons are now labelled (“Add virtual device”,
+  “Import P44 device”) via `initiate_flow` / `entry_type` translations.
+- `devtools/dump_p44_devices.py` to enumerate bridge devices (credentials from a
+  gitignored `.env.p44`, never the command line).
+- Robustness/clean-up: non-numeric sensor fallback, unknown-unit warning,
+  `state_mapping` extracted from the coordinator, dead code removed, expanded
+  test suite, CI now runs the Home Assistant component tests.
+
 This archive is the first consolidated release candidate based on live verification against a real P44 bridge.
 
 ## Verified live against real P44

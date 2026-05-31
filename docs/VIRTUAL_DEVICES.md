@@ -1,5 +1,10 @@
 # Creating and managing virtual devices
 
+This page covers the **export** direction: publishing Home Assistant entities to
+plan44 as virtual devices. For the opposite direction — importing physical
+devices from the bridge into Home Assistant — see
+[Importing plan44 devices](DEVICE_IMPORT.md).
+
 This page explains how to create Home Assistant entities that are good sources for plan44 virtual devices, and how to export them using the integration.
 
 ## Important idea
