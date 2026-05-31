@@ -39,12 +39,17 @@
     "step": {
       "init": {
         "title": "plan44 options",
+        "description": "The web API fields (URL + login of the plan44 web UI) enable importing physical devices from a live list and reading their values.",
         "data": {
           "auto_republish": "Automatically republish virtual devices on startup",
           "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
           "reconnect_interval": "Reconnect interval in seconds",
           "blocklist_integrations": "Blocked integrations (comma-separated)",
-          "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)"
+          "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)",
+          "web_url": "Web API URL (e.g. https://your-bridge)",
+          "web_user": "Web API user",
+          "web_password": "Web API password",
+          "web_poll_interval": "Device poll interval (seconds)"
         }
       }
     }
@@ -87,9 +92,16 @@
       },
       "entry_type": "P44 device",
       "step": {
-        "user": {
+        "pick_device": {
           "title": "Import a plan44 device",
-          "description": "Import a physical device registered on the plan44 gateway (e.g. an EnOcean multisensor that Digitalstrom does not expose). Pick the matching profile and all of its channels become Home Assistant entities.\n\nThe tag is the plan44 device id (e.g. `enoceanaddress:00123456`). When plan44 pushes data for an unknown device, a notification shows you its tag.",
+          "description": "Pick a device read live from your plan44 bridge. Its channels (sensors and inputs) are imported automatically and polled via the web API.",
+          "data": {
+            "dsuid": "Device"
+          }
+        },
+        "manual": {
+          "title": "Import a plan44 device (manual)",
+          "description": "No web API configured — enter the device manually. The tag is the plan44 device id (e.g. `enoceanaddress:00123456`); pick the matching profile so its channels become Home Assistant entities.",
           "data": {
             "p44_tag": "Plan44 device tag",
             "template": "Device profile",

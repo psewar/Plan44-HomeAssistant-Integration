@@ -39,12 +39,17 @@
     "step": {
       "init": {
         "title": "Plan44-Optionen",
+        "description": "Die Web-API-Felder (URL + Login der plan44-Web-Oberfläche) ermöglichen den Import physischer Geräte aus einer Live-Liste und das Auslesen ihrer Werte.",
         "data": {
           "auto_republish": "Virtuelle Geräte beim Start automatisch neu veröffentlichen",
           "reverse_enabled": "Umgekehrte Steuerung von plan44 zu Home Assistant aktivieren",
           "reconnect_interval": "Wiederverbindungsintervall in Sekunden",
           "blocklist_integrations": "Blockierte Integrationen (durch Komma getrennt)",
-          "blocklist_entity_id_prefixes": "Blockierte entity_id-Präfixe (durch Komma getrennt)"
+          "blocklist_entity_id_prefixes": "Blockierte entity_id-Präfixe (durch Komma getrennt)",
+          "web_url": "Web-API-URL (z.B. https://deine-bridge)",
+          "web_user": "Web-API-Benutzer",
+          "web_password": "Web-API-Passwort",
+          "web_poll_interval": "Abfrageintervall der Geräte (Sekunden)"
         }
       }
     }
@@ -87,9 +92,16 @@
       },
       "entry_type": "P44-Gerät",
       "step": {
-        "user": {
+        "pick_device": {
           "title": "Plan44-Gerät importieren",
-          "description": "Importiert ein physisches Gerät vom plan44-Gateway (z.B. einen EnOcean-Multisensor, den Digitalstrom nicht kennt). Wähle das passende Profil – alle Kanäle werden automatisch zu Home-Assistant-Entitäten.\n\nDer Tag ist die plan44-Geräte-ID (z.B. `enoceanaddress:00123456`). Wenn plan44 Daten für ein unbekanntes Gerät sendet, zeigt eine Benachrichtigung dessen Tag.",
+          "description": "Wähle ein Gerät, das live von deiner plan44-Bridge gelesen wurde. Seine Kanäle (Sensoren und Eingänge) werden automatisch importiert und per Web-API abgefragt.",
+          "data": {
+            "dsuid": "Gerät"
+          }
+        },
+        "manual": {
+          "title": "Plan44-Gerät importieren (manuell)",
+          "description": "Keine Web-API konfiguriert — Gerät manuell eingeben. Der Tag ist die plan44-Geräte-ID (z.B. `enoceanaddress:00123456`); wähle das passende Profil, damit die Kanäle zu Home-Assistant-Entitäten werden.",
           "data": {
             "p44_tag": "Plan44-Geräte-Tag",
             "template": "Geräteprofil",

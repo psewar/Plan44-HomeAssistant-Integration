@@ -7,8 +7,10 @@ from homeassistant.config_entries import ConfigEntry
 
 if TYPE_CHECKING:
     from .coordinator import Plan44Coordinator
+    from .device_coordinator import Plan44DeviceCoordinator
     from .plan44_client import Plan44Client
     from .store import Plan44Store
+    from .web_client import Plan44WebApi
 
 DOMAIN = "plan44"
 
@@ -21,6 +23,12 @@ CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_BLOCKLIST_INTEGRATIONS = "blocklist_integrations"
 CONF_BLOCKLIST_ENTITY_ID_PREFIXES = "blocklist_entity_id_prefixes"
 
+# Web vdc JSON API (device discovery + REST value polling)
+CONF_WEB_URL = "web_url"
+CONF_WEB_USER = "web_user"
+CONF_WEB_PASSWORD = "web_password"
+CONF_WEB_POLL_INTERVAL = "web_poll_interval"
+
 DEFAULT_PORT = 8999
 DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"
 DEFAULT_AUTO_REPUBLISH = True
@@ -28,6 +36,7 @@ DEFAULT_REVERSE_ENABLED = True
 DEFAULT_RECONNECT_INTERVAL = 10
 DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
+DEFAULT_WEB_POLL_INTERVAL = 30
 
 SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"
 SUBENTRY_TYPE_P44_DEVICE = "p44_device"
@@ -57,6 +66,11 @@ ATTR_UNIT = "unit"
 ATTR_DEVICE_CLASS = "device_class"
 ATTR_PLATFORM = "platform"
 
+# p44_device subentry attributes for REST-discovered (dSUID-based) devices
+ATTR_DSUID = "dsuid"
+ATTR_MODEL = "model"
+ATTR_CHANNELS = "channels"  # list of serialized DiscoveredChannel dicts
+
 KIND_SWITCH = "switch"
 KIND_LIGHT = "light"
 KIND_SENSOR = "sensor"
@@ -81,6 +95,8 @@ class Plan44RuntimeData:
     client: Plan44Client
     coordinator: Plan44Coordinator
     store: Plan44Store
+    web_api: Plan44WebApi | None = None
+    device_coordinator: Plan44DeviceCoordinator | None = None
 
 
 type Plan44ConfigEntry = ConfigEntry[Plan44RuntimeData]
