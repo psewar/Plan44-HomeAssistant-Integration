@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     ATTR_CHANNELS,
@@ -35,16 +35,19 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: Plan44ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Create sensor entities for the sensor channels of each p44_device.
 
     Two kinds of p44_device subentry are supported:
     * dSUID-based (discovered via the REST web API) → polled CoordinatorEntity
     * tag-based (manual/template) → push entity fed by the TCP coordinator
+
+    Entities are added under their own subentry (``config_subentry_id``) so the
+    imported device is attributed to its "Plan44 device" sub-entry in the UI
+    instead of the generic "devices that don't belong to a sub-entry" bucket.
     """
     runtime = entry.runtime_data
-    entities: list[SensorEntity] = []
 
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
@@ -60,20 +63,16 @@ async def async_setup_entry(
                     subentry_id,
                 )
                 continue
-            entities.extend(
-                _build_rest_sensors(
-                    runtime.device_coordinator, entry.entry_id, subentry_id, data
-                )
+            entities: list[SensorEntity] = _build_rest_sensors(
+                runtime.device_coordinator, entry.entry_id, subentry_id, data
             )
         else:
-            entities.extend(
-                _build_push_sensors(
-                    runtime.coordinator, entry.entry_id, subentry_id, data
-                )
+            entities = _build_push_sensors(
+                runtime.coordinator, entry.entry_id, subentry_id, data
             )
 
-    if entities:
-        async_add_entities(entities)
+        if entities:
+            async_add_entities(entities, config_subentry_id=subentry_id)
 
 
 def _build_rest_sensors(
