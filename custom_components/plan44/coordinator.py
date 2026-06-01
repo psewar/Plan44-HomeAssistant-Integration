@@ -477,6 +477,15 @@ class Plan44Coordinator:
                 )
 
         source_platform = await self._async_get_entity_platform(entity_id)
+        # Loop guard: an entity provided by plan44 itself (imported from the
+        # bridge) must not be exported back — that is a direct circular
+        # reference (P44 -> HA -> P44).  This is enforced unconditionally,
+        # independent of the configurable blocklist.
+        if source_platform == DOMAIN:
+            raise HomeAssistantError(
+                f"Entity '{entity_id}' is provided by plan44 itself; exporting "
+                f"it back would create a loop (circular reference)"
+            )
         if source_platform and source_platform.lower() in self._blocked_integrations:
             raise HomeAssistantError(
                 f"Entity '{entity_id}' originates from blocked integration "

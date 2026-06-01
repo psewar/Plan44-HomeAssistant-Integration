@@ -11,7 +11,7 @@
           "auto_republish": "Automatically republish virtual devices on startup",
           "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
           "reconnect_interval": "Reconnect interval in seconds",
-          "blocklist_integrations": "Blocked integrations (comma-separated)",
+          "blocklist_integrations": "Blocked integrations",
           "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)"
         }
       },
@@ -40,7 +40,7 @@
           "auto_republish": "Automatically republish virtual devices on startup",
           "reverse_enabled": "Enable reverse control from plan44 to Home Assistant",
           "reconnect_interval": "Reconnect interval in seconds",
-          "blocklist_integrations": "Blocked integrations (comma-separated)",
+          "blocklist_integrations": "Blocked integrations",
           "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)",
           "web_user": "Web API user",
           "web_password": "Web API password",
@@ -79,6 +79,7 @@
       },
       "error": {
         "entity_not_found": "The selected entity was not found.",
+        "circular_reference": "That entity is provided by plan44 itself, so exporting it back would create a loop.",
         "unsupported_domain": "That entity type is not supported. Pick a switch, light, sensor or binary_sensor.",
         "sensor_not_numeric": "The selected sensor does not currently have a numeric state.",
         "already_configured": "A virtual device for this entity already exists."

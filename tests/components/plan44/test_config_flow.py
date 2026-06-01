@@ -33,7 +33,7 @@ async def test_user_flow_success(hass: HomeAssistant) -> None:
                 "auto_republish": True,
                 "reverse_enabled": True,
                 "reconnect_interval": 10,
-                "blocklist_integrations": "",
+                "blocklist_integrations": [],
                 "blocklist_entity_id_prefixes": "",
             },
         )
@@ -62,7 +62,7 @@ async def test_user_flow_cannot_connect(hass: HomeAssistant) -> None:
                 "auto_republish": True,
                 "reverse_enabled": True,
                 "reconnect_interval": 10,
-                "blocklist_integrations": "",
+                "blocklist_integrations": [],
                 "blocklist_entity_id_prefixes": "",
             },
         )

@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry, ConfigSubentryFlow
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import selector
 
 from .const import (
@@ -87,8 +88,46 @@ async def _validate_connection(host: str, port: int, model: str) -> None:
     await client.async_disconnect()
 
 
-def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
+def _as_list(value: Any) -> list[str]:
+    """Normalise a stored blocklist value (CSV string or list) to a list."""
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [part.strip() for part in str(value or "").split(",") if part.strip()]
+
+
+def _integration_select(hass: HomeAssistant, current_value: Any) -> Any:
+    """A multi-select of the installed integration domains.
+
+    ``custom_value`` keeps free-text entries allowed (e.g. integrations that
+    aren't installed yet, or the digitalSTROM defaults on a fresh system), and
+    the currently-selected values are always merged into the options so they
+    still render as chips even when their integration isn't loaded.
+    """
+    selected = _as_list(current_value)
+    domains = set(hass.config_entries.async_domains())
+    options = sorted(domains | set(selected))
+    return selector(
+        {
+            "select": {
+                "options": options,
+                "multiple": True,
+                "custom_value": True,
+                "mode": "dropdown",
+                "sort": True,
+            }
+        }
+    )
+
+
+def _options_schema(
+    hass: HomeAssistant,
+    user_input: ConfigDict | None = None,
+) -> vol.Schema:
     current = user_input or {}
+    blocklist_integrations = current.get(
+        CONF_BLOCKLIST_INTEGRATIONS,
+        DEFAULT_BLOCKLIST_INTEGRATIONS,
+    )
     return vol.Schema(
         {
             vol.Required(
@@ -108,11 +147,8 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
             ): int,
             vol.Optional(
                 CONF_BLOCKLIST_INTEGRATIONS,
-                default=current.get(
-                    CONF_BLOCKLIST_INTEGRATIONS,
-                    DEFAULT_BLOCKLIST_INTEGRATIONS,
-                ),
-            ): str,
+                default=_as_list(blocklist_integrations),
+            ): _integration_select(hass, blocklist_integrations),
             vol.Optional(
                 CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
                 default=current.get(
@@ -195,6 +231,14 @@ def _validate_virtual_device(
     state = hass.states.get(entity_id)
     if state is None:
         errors["base"] = "entity_not_found"
+        return errors
+
+    # Loop guard: an entity provided by plan44 itself (i.e. imported from the
+    # bridge via a p44_device subentry) must not be exported back to plan44 —
+    # that would be a direct circular reference (P44 -> HA -> P44).
+    registry_entry = er.async_get(hass).async_get(entity_id)
+    if registry_entry is not None and registry_entry.platform == DOMAIN:
+        errors["base"] = "circular_reference"
         return errors
 
     if kind not in SUPPORTED_KINDS:
@@ -309,8 +353,8 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ): int,
                 vol.Optional(
                     CONF_BLOCKLIST_INTEGRATIONS,
-                    default=DEFAULT_BLOCKLIST_INTEGRATIONS,
-                ): str,
+                    default=_as_list(DEFAULT_BLOCKLIST_INTEGRATIONS),
+                ): _integration_select(self.hass, DEFAULT_BLOCKLIST_INTEGRATIONS),
                 vol.Optional(
                     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
                     default=DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
@@ -408,7 +452,7 @@ class Plan44OptionsFlow(config_entries.OptionsFlow):
         }
         return self.async_show_form(
             step_id="init",
-            data_schema=_options_schema(current),
+            data_schema=_options_schema(self.hass, current),
         )
 
 
