@@ -582,6 +582,23 @@ def _p44_custom_form_schema(current: ConfigDict | None = None) -> vol.Schema:
     )
 
 
+def _p44_reconfigure_name_schema(current: ConfigDict | None = None) -> vol.Schema:
+    """Reconfigure schema for picker-imported (dSUID) devices: display name only.
+
+    Their identity (dSUID) and channels are read live from the bridge and must
+    not be hand-edited, so the tag/profile fields of the manual form do not
+    apply here — only the display name is offered.
+    """
+    c = current or {}
+    return vol.Schema(
+        {
+            vol.Optional(ATTR_NAME, default=c.get(ATTR_NAME) or ""): selector(
+                {"text": {}}
+            ),
+        }
+    )
+
+
 def _validate_p44_device(user_input: ConfigDict) -> dict[str, str]:
     errors: dict[str, str] = {}
     if not str(user_input.get(ATTR_P44_TAG, "")).strip():
@@ -754,8 +771,16 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
     ) -> Any:
         subentry = self._get_reconfigure_subentry()
         current = dict(getattr(subentry, "data", {}))
-        errors: dict[str, str] = {}
 
+        # Picker-imported (dSUID) devices: identity and channels come from the
+        # live bridge, so only the display name is editable.  Manual (tag +
+        # template) devices keep the full form below.
+        if current.get(ATTR_DSUID):
+            return await self._async_reconfigure_dsuid_name(
+                subentry, current, user_input
+            )
+
+        errors: dict[str, str] = {}
         if user_input is not None:
             errors = _validate_p44_device(user_input)
             if not errors:
@@ -779,4 +804,29 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
             step_id="reconfigure",
             data_schema=_p44_device_form_schema(user_input or current),
             errors=errors,
+        )
+
+    async def _async_reconfigure_dsuid_name(
+        self,
+        subentry: ConfigSubentry,
+        current: ConfigDict,
+        user_input: ConfigDict | None,
+    ) -> Any:
+        """Reconfigure a picker-imported (dSUID) device: display name only."""
+        if user_input is not None:
+            name = str(user_input.get(ATTR_NAME, "")).strip() or None
+            data = {**current, ATTR_NAME: name}
+            title = name or str(current.get(ATTR_DSUID))
+            entry = self._get_entry()
+            self.hass.config_entries.async_update_subentry(
+                entry, subentry, data=data, title=title
+            )
+            self.hass.async_create_task(
+                _async_schedule_entry_reload(self.hass, entry.entry_id)
+            )
+            return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_p44_reconfigure_name_schema(current),
         )
