@@ -1,5 +1,22 @@
 # Release notes
 
+## 0.5.7 — 2026-06-01
+
+- **Imported devices now appear under their own "Plan44 device" sub-entry**
+  instead of the generic "Devices that don't belong to a sub-entry" section.
+  Their entities are added with `config_subentry_id`, so each imported device
+  is attributed to the sub-entry that created it. This cleanly separates the
+  two directions in the UI: **Virtual device** sub-entries are HA → plan44
+  (export), **Plan44 device** sub-entries are plan44 → HA (import) — and the
+  same device no longer shows up twice.
+- Renamed the import sub-entry type from "P44 device" to **"Plan44 device"**
+  (incl. the discovery notification that points at the import button) for a
+  clearer, consistent label.
+
+> The "Devices that don't belong to a sub-entry" heading itself is a Home
+> Assistant core string and can't be renamed by an integration — but with this
+> change plan44 no longer puts anything there.
+
 ## 0.5.6 — 2026-06-01
 
 - **Fix: editing an imported (picker) device no longer shows a stray device-tag

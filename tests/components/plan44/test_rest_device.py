@@ -188,6 +188,32 @@ async def test_rest_device_unavailable_without_web_api_data(
     assert state.state == "unavailable"
 
 
+async def test_rest_device_entities_linked_to_subentry(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Imported entities attach to their sub-entry, not the orphan bucket.
+
+    They are added with ``config_subentry_id`` so the device shows under its
+    "Plan44 device" sub-entry instead of "devices that don't belong to a
+    sub-entry".
+    """
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    subentry_id = next(iter(entry.subentries))
+    registry = async_get_entity_registry(hass)
+    ents = [
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    ]
+    assert len(ents) == 2  # temperature + low_battery
+    assert all(e.config_subentry_id == subentry_id for e in ents)
+
+
 async def test_rest_device_reconfigure_is_name_only(
     hass: HomeAssistant, mock_plan44_client: Any
 ) -> None:
