@@ -1,5 +1,26 @@
 # Release notes
 
+## 0.5.5 — 2026-06-01
+
+- **Automatic circular-reference guard.** An entity that this integration itself
+  imported from the bridge (a `p44_device`) can no longer be exported back to
+  plan44 as a virtual device — that would be a direct loop (P44 → HA → P44).
+  Such entities are detected via their registry platform (`plan44`) and rejected
+  with a clear "would create a loop" message, both in the *Add virtual device*
+  UI and on the export service path. This is always on and needs no
+  configuration.
+- **Blocked integrations is now a multi-select** of the integrations actually
+  installed in your Home Assistant, instead of a free-text, comma-separated
+  field — fewer typos, and you can still type a custom value for an integration
+  that isn't installed yet. Existing comma-separated settings are migrated
+  transparently. (Blocked `entity_id` prefixes stay a text field, since prefixes
+  are patterns rather than concrete entities.)
+
+> Note: cross-bridge loops (e.g. digitalSTROM → HA → plan44 → digitalSTROM)
+> can't be proven automatically because the integration doesn't know your
+> downstream topology — the (now friendlier) blocklist remains the tool for
+> those.
+
 ## 0.5.4 — 2026-05-31
 
 - **Simpler "Add virtual device" flow.** You no longer choose a device type first
