@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigSubentry
@@ -16,6 +16,8 @@ from custom_components.plan44.const import (
     ATTR_DSUID,
     ATTR_MODEL,
     ATTR_NAME,
+    ATTR_P44_TAG,
+    ATTR_TEMPLATE,
     CONF_AUTO_REPUBLISH,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
@@ -184,3 +186,52 @@ async def test_rest_device_unavailable_without_web_api_data(
     state = hass.states.get(temp.entity_id)
     assert state is not None
     assert state.state == "unavailable"
+
+
+async def test_rest_device_reconfigure_is_name_only(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Editing a picker-imported (dSUID) device offers only the display name.
+
+    The tag/profile fields of the manual import form must not appear, and
+    saving must not inject a stray p44_tag/template into the dSUID subentry.
+    """
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        subentry_id = next(iter(entry.subentries))
+        result = cast(
+            Any,
+            await hass.config_entries.subentries.async_init(
+                (entry.entry_id, SUBENTRY_TYPE_P44_DEVICE),
+                context={"source": "reconfigure", "subentry_id": subentry_id},
+            ),
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+        keys = {str(k) for k in result["data_schema"].schema}
+        assert ATTR_NAME in keys
+        assert ATTR_P44_TAG not in keys  # the leftover field is gone
+        assert ATTR_TEMPLATE not in keys
+
+        result2 = cast(
+            Any,
+            await hass.config_entries.subentries.async_configure(
+                result["flow_id"], {ATTR_NAME: "Heizventil Büro"}
+            ),
+        )
+        assert result2["type"] == "abort"
+        assert result2["reason"] == "reconfigure_successful"
+        await hass.async_block_till_done()
+
+    data = entry.subentries[subentry_id].data
+    assert data[ATTR_NAME] == "Heizventil Büro"
+    assert data[ATTR_DSUID] == _DSUID  # identity preserved
+    assert data[ATTR_CHANNELS] == _CHANNELS  # channels preserved
+    assert ATTR_P44_TAG not in data  # no leftover tag injected
+    assert ATTR_TEMPLATE not in data

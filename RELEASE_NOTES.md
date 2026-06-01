@@ -1,5 +1,16 @@
 # Release notes
 
+## 0.5.6 — 2026-06-01
+
+- **Fix: editing an imported (picker) device no longer shows a stray device-tag
+  field.** Devices imported from the live bridge are identified by their dSUID
+  and their channels come from the bridge, so the *Edit* dialog now offers only
+  the display name. Previously it reused the manual-import form — showing an
+  empty, *required* "Plan44 device tag" plus a profile dropdown that didn't
+  apply, and it could inject an unused `p44_tag`/`template` into the device's
+  data on save. Manual (tag + profile) devices are unaffected and keep the full
+  form.
+
 ## 0.5.5 — 2026-06-01
 
 - **Automatic circular-reference guard.** An entity that this integration itself
