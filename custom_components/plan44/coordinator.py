@@ -512,7 +512,7 @@ class Plan44Coordinator:
 
         If no entity is listening for this (message, tag, index) yet, raise a
         persistent HA notification so the user can import the device as a
-        'P44 device' subentry — without reinstalling the integration.
+        'Plan44 device' subentry — without reinstalling the integration.
         """
         message = str(msg.get("message"))
         value_raw = msg.get("value")
@@ -552,7 +552,7 @@ class Plan44Coordinator:
             f"- **Tag:** `{tag}`\n"
             f"- **Bisher gesehene Kanäle (Index):** `{indices}`\n\n"
             f"Importiere es unter *Einstellungen → Geräte & Dienste → plan44* "
-            f"über **+ P44-Gerät importieren**: gib diesen Tag ein und wähle das "
+            f"über **+ Plan44-Gerät importieren**: gib diesen Tag ein und wähle das "
             f"passende Geräteprofil. Alle Kanäle werden dann automatisch als "
             f"Entitäten angelegt."
         )

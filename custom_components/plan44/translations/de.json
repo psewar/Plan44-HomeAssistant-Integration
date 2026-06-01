@@ -87,10 +87,10 @@
     },
     "p44_device": {
       "initiate_flow": {
-        "user": "P44-Gerät importieren",
-        "reconfigure": "P44-Gerät bearbeiten"
+        "user": "Plan44-Gerät importieren",
+        "reconfigure": "Plan44-Gerät bearbeiten"
       },
-      "entry_type": "P44-Gerät",
+      "entry_type": "Plan44-Gerät",
       "step": {
         "pick_device": {
           "title": "Plan44-Gerät importieren",
@@ -119,7 +119,7 @@
           }
         },
         "reconfigure": {
-          "title": "P44-Gerät bearbeiten",
+          "title": "Plan44-Gerät bearbeiten",
           "data": {
             "p44_tag": "Plan44-Geräte-Tag",
             "template": "Geräteprofil",

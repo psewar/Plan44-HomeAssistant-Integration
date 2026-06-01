@@ -11,7 +11,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     ATTR_CHANNELS,
@@ -33,11 +33,15 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: Plan44ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Create binary_sensor entities for the binary channels of each p44_device."""
+    """Create binary_sensor entities for the binary channels of each p44_device.
+
+    Entities are added under their own subentry (``config_subentry_id``) so the
+    imported device is attributed to its "Plan44 device" sub-entry in the UI
+    instead of the generic "devices that don't belong to a sub-entry" bucket.
+    """
     runtime = entry.runtime_data
-    entities: list[BinarySensorEntity] = []
 
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
@@ -49,20 +53,16 @@ async def async_setup_entry(
         if data.get(ATTR_DSUID):
             if runtime.device_coordinator is None:
                 continue
-            entities.extend(
-                _build_rest_inputs(
-                    runtime.device_coordinator, entry.entry_id, subentry_id, data
-                )
+            entities: list[BinarySensorEntity] = _build_rest_inputs(
+                runtime.device_coordinator, entry.entry_id, subentry_id, data
             )
         else:
-            entities.extend(
-                _build_push_inputs(
-                    runtime.coordinator, entry.entry_id, subentry_id, data
-                )
+            entities = _build_push_inputs(
+                runtime.coordinator, entry.entry_id, subentry_id, data
             )
 
-    if entities:
-        async_add_entities(entities)
+        if entities:
+            async_add_entities(entities, config_subentry_id=subentry_id)
 
 
 def _build_rest_inputs(
