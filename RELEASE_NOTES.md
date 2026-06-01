@@ -1,5 +1,15 @@
 # Release notes
 
+## 0.5.4 — 2026-05-31
+
+- **Simpler "Add virtual device" flow.** You no longer choose a device type first
+  and then an entity — just pick the entity (filtered to switch / light / sensor /
+  binary_sensor) and the type is derived from its domain automatically. One step
+  instead of two, and the "type doesn't match the entity" error is gone.
+- Moved the virtual-device validation messages under the subentry's own
+  translation block (where Home Assistant looks them up) and dropped the now-dead
+  `kind_mismatch` string.
+
 ## 0.5.3 — 2026-05-31
 
 - **Fix "Translation error: UNCLOSED_TAG" when opening the plan44 options.** The

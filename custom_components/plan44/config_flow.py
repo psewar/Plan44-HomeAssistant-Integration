@@ -136,33 +136,25 @@ def _options_schema(user_input: ConfigDict | None = None) -> vol.Schema:
     )
 
 
+# The virtual-device type equals the source entity's domain, so the user just
+# picks an entity (filtered to the supported domains) and the kind is derived.
+_VIRTUAL_DEVICE_ENTITY_FILTER = [
+    {"domain": KIND_SWITCH},
+    {"domain": KIND_LIGHT},
+    {"domain": KIND_SENSOR},
+    {"domain": KIND_BINARY_SENSOR},
+]
+
+
+def _kind_from_entity_id(entity_id: str) -> str:
+    """Derive the virtual-device kind from an entity id (kind == domain)."""
+    return entity_id.split(".", 1)[0]
+
+
 def _virtual_device_form_schema(current: ConfigDict | None = None) -> vol.Schema:
     current = current or {}
-    # Filter entity selector based on selected kind (if provided in current)
-    selected_kind = current.get("kind")
-    entity_filter = (
-        [{"domain": selected_kind}]
-        if selected_kind
-        else [
-            {"domain": KIND_SWITCH},
-            {"domain": KIND_LIGHT},
-            {"domain": KIND_SENSOR},
-            {"domain": KIND_BINARY_SENSOR},
-        ]
-    )
     return vol.Schema(
         {
-            vol.Required(
-                "kind",
-                default=current.get("kind", KIND_SWITCH),
-            ): selector(
-                {
-                    "select": {
-                        "options": sorted(SUPPORTED_KINDS),
-                        "mode": "dropdown",
-                    }
-                }
-            ),
             vol.Required(
                 "entity_id",
                 default=current.get("entity_id", ""),
@@ -170,7 +162,7 @@ def _virtual_device_form_schema(current: ConfigDict | None = None) -> vol.Schema
                 {
                     "entity": {
                         "multiple": False,
-                        "filter": entity_filter,
+                        "filter": _VIRTUAL_DEVICE_ENTITY_FILTER,
                     }
                 }
             ),
@@ -198,16 +190,15 @@ def _validate_virtual_device(
 ) -> dict[str, str]:
     errors: dict[str, str] = {}
     entity_id = user_input["entity_id"]
-    kind = user_input["kind"]
+    kind = _kind_from_entity_id(entity_id)
 
     state = hass.states.get(entity_id)
     if state is None:
         errors["base"] = "entity_not_found"
         return errors
 
-    entity_domain = entity_id.split(".", 1)[0]
-    if entity_domain != kind:
-        errors["base"] = "kind_mismatch"
+    if kind not in SUPPORTED_KINDS:
+        errors["base"] = "unsupported_domain"
         return errors
 
     if kind == KIND_SENSOR:
@@ -438,10 +429,13 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
             if not errors:
                 entity_id = user_input["entity_id"]
                 name = user_input.get("name") or entity_id
+                # The kind is derived from the entity domain and persisted so the
+                # coordinator/export logic can read it.
+                data = {**user_input, "kind": _kind_from_entity_id(entity_id)}
                 self.hass.async_create_task(
                     _async_schedule_runtime_sync(self.hass, entry.entry_id)
                 )
-                return self.async_create_entry(title=name, data=user_input)
+                return self.async_create_entry(title=name, data=data)
 
         current = user_input or {}
         return self.async_show_form(
@@ -468,11 +462,15 @@ class Plan44VirtualDeviceSubentryFlow(config_entries.ConfigSubentryFlow):
             )
             if not errors:
                 name = user_input.get("name") or user_input["entity_id"]
+                data = {
+                    **user_input,
+                    "kind": _kind_from_entity_id(user_input["entity_id"]),
+                }
                 _update_subentry_runtime(
                     self.hass,
                     entry,
                     subentry,
-                    user_input,
+                    data,
                     name,
                 )
                 return self.async_abort(reason="reconfigure_successful")

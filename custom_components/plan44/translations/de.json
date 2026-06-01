@@ -25,11 +25,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Verbindung zu plan44 fehlgeschlagen",
-      "entity_not_found": "Die ausgewählte Entität wurde nicht gefunden.",
-      "kind_mismatch": "Die Domäne der ausgewählten Entität stimmt nicht mit dem gewählten virtuellen Gerätetyp überein.",
-      "sensor_not_numeric": "Der ausgewählte Sensor hat derzeit keinen numerischen Zustand.",
-      "already_configured": "Ein virtuelles Gerät für diese Entität existiert bereits."
+      "cannot_connect": "Verbindung zu plan44 fehlgeschlagen"
     },
     "abort": {
       "reconfigure_successful": "Konfiguration erfolgreich aktualisiert"
@@ -63,9 +59,8 @@
       "step": {
         "user": {
           "title": "Virtuelles Gerät hinzufügen",
-          "description": "Exportiert eine Home-Assistant-Entität zu plan44 für Fernsteuerung und Überwachung.",
+          "description": "Wähle eine Home-Assistant-Entität, die zu plan44 exportiert werden soll (Fernsteuerung und Überwachung). Der Gerätetyp wird automatisch aus der Entität erkannt (switch, light, sensor oder binary_sensor).",
           "data": {
-            "kind": "Virtueller Gerätetyp",
             "entity_id": "Quell-Entität",
             "name": "Anzeigename",
             "room_hint": "Raumhinweis",
@@ -76,12 +71,17 @@
           "title": "Virtuelles Gerät bearbeiten",
           "data": {
             "entity_id": "Quell-Entität",
-            "kind": "Virtueller Gerätetyp",
             "name": "Anzeigename",
             "room_hint": "Raumhinweis",
             "allow_reverse": "Umgekehrte Steuerung erlauben"
           }
         }
+      },
+      "error": {
+        "entity_not_found": "Die ausgewählte Entität wurde nicht gefunden.",
+        "unsupported_domain": "Dieser Entitätstyp wird nicht unterstützt. Wähle switch, light, sensor oder binary_sensor.",
+        "sensor_not_numeric": "Der ausgewählte Sensor hat derzeit keinen numerischen Zustand.",
+        "already_configured": "Ein virtuelles Gerät für diese Entität existiert bereits."
       }
     },
     "p44_device": {
