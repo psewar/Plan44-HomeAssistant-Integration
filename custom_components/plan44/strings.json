@@ -25,11 +25,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to plan44",
-      "entity_not_found": "The selected entity was not found.",
-      "kind_mismatch": "The selected entity domain does not match the chosen virtual device type.",
-      "sensor_not_numeric": "The selected sensor does not currently have a numeric state.",
-      "already_configured": "A virtual device for this entity already exists."
+      "cannot_connect": "Failed to connect to plan44"
     },
     "abort": {
       "reconfigure_successful": "Configuration updated successfully"
@@ -63,9 +59,8 @@
       "step": {
         "user": {
           "title": "Add virtual device",
-          "description": "Export a Home Assistant entity to plan44 for remote control and monitoring.",
+          "description": "Pick a Home Assistant entity to export to plan44 for remote control and monitoring. The device type is detected automatically from the entity (switch, light, sensor or binary_sensor).",
           "data": {
-            "kind": "Virtual device type",
             "entity_id": "Source entity",
             "name": "Display name",
             "room_hint": "Room hint",
@@ -76,12 +71,17 @@
           "title": "Edit virtual device",
           "data": {
             "entity_id": "Source entity",
-            "kind": "Virtual device type",
             "name": "Display name",
             "room_hint": "Room hint",
             "allow_reverse": "Allow reverse control"
           }
         }
+      },
+      "error": {
+        "entity_not_found": "The selected entity was not found.",
+        "unsupported_domain": "That entity type is not supported. Pick a switch, light, sensor or binary_sensor.",
+        "sensor_not_numeric": "The selected sensor does not currently have a numeric state.",
+        "already_configured": "A virtual device for this entity already exists."
       }
     },
     "p44_device": {
