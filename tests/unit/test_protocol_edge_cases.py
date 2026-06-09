@@ -98,6 +98,17 @@ def test_parse_ignores_message_without_tag() -> None:
     assert parse_incoming_message(msg, "switch") is None
 
 
+@pytest.mark.parametrize("bad_value", ["not-a-number", None, [1, 2]])
+def test_parse_handles_malformed_value(bad_value: object) -> None:
+    """A non-numeric channel value must return None, not raise.
+
+    A raise here would propagate into the TCP reader loop and tear down the
+    connection on a single bad message.
+    """
+    msg = {"message": "channel", "tag": "ha::switch.x", "value": bad_value}
+    assert parse_incoming_message(msg, "switch") is None
+
+
 def test_parse_switch_off() -> None:
     cmd = parse_incoming_message(
         {"message": "channel", "tag": "ha::switch.x", "value": 0}, "switch"

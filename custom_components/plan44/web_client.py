@@ -7,7 +7,9 @@ reads their current values.
 
 Digest auth is not supported by aiohttp, so the blocking request runs in an
 executor via urllib (which has HTTPDigestAuthHandler).  The bridge uses a
-self-signed certificate, so TLS verification is disabled for it.
+self-signed certificate, so it is pinned on first use (trust-on-first-use):
+the certificate is fetched + stored once, and later calls verify the peer
+against exactly that certificate instead of trusting any/no certificate.
 """
 
 from __future__ import annotations
@@ -27,6 +29,13 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SENSOR = "sensor"
 PLATFORM_BINARY_SENSOR = "binary_sensor"
+
+# Guard rails against a malformed/hostile bridge response.
+_MAX_RESPONSE_BYTES = 8 * 1024 * 1024  # 8 MiB is far above any real vdc reply
+_MAX_PARSE_DEPTH = 64  # the real reply nests ~6 levels; 64 is generous
+
+DEFAULT_HTTPS_PORT = 443
+_CERT_FETCH_TIMEOUT = 15.0
 
 # dS sensorType -> (HA device_class, state_class). Unmapped types → plain sensor.
 _SENSOR_TYPE: dict[int, tuple[str | None, str | None]] = {
@@ -104,6 +113,51 @@ def default_web_url(host: str | None) -> str | None:
     return f"https://{host}"
 
 
+def build_ssl_context(pinned_cert: str | None) -> ssl.SSLContext:
+    """Build the TLS context for talking to the bridge.
+
+    With a pinned certificate we trust *only* that certificate (the bridge's
+    self-signed cert is its own anchor), giving MITM protection.  Hostname
+    checking is off because self-signed certs rarely match the host/IP and the
+    exact-cert pin already binds the connection.  Without a pin (before the
+    first fetch, or if the fetch failed) we fall back to no verification.
+    """
+    if pinned_cert:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.load_verify_locations(cadata=pinned_cert)
+        return ctx
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def fetch_server_cert_pem(
+    base_url: str, timeout: float = _CERT_FETCH_TIMEOUT
+) -> str | None:
+    """Fetch the bridge's TLS certificate (PEM) for trust-on-first-use pinning.
+
+    Returns ``None`` if the host is unreachable or no certificate is presented;
+    the caller then keeps working unpinned until a fetch succeeds.
+    """
+    parsed = urllib.parse.urlparse(base_url)
+    host = parsed.hostname
+    if not host:
+        return None
+    port = parsed.port or DEFAULT_HTTPS_PORT
+    try:
+        return ssl.get_server_certificate((host, port), timeout=timeout)
+    except (OSError, ValueError) as err:
+        _LOGGER.warning(
+            "plan44: could not fetch bridge certificate for pinning (%s); "
+            "continuing without certificate verification",
+            err,
+        )
+        return None
+
+
 class Plan44WebApiError(Exception):
     """Raised when the web API cannot be queried."""
 
@@ -112,12 +166,18 @@ class Plan44WebApi:
     """Minimal async wrapper around the plan44 web vdc JSON API."""
 
     def __init__(
-        self, hass: HomeAssistant, base_url: str, user: str, password: str
+        self,
+        hass: HomeAssistant,
+        base_url: str,
+        user: str,
+        password: str,
+        pinned_cert: str | None = None,
     ) -> None:
         self._hass = hass
         self._base = base_url.rstrip("/")
         self._user = user
         self._password = password
+        self._pinned_cert = pinned_cert
 
     @property
     def base_url(self) -> str:
@@ -140,9 +200,7 @@ class Plan44WebApi:
     # -- blocking implementation (runs in executor) ------------------------
 
     def _request_sync(self, query: dict[str, Any]) -> Any:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = build_ssl_context(self._pinned_cert)
         pwmgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         pwmgr.add_password(None, self._base, self._user, self._password)
         opener = urllib.request.build_opener(
@@ -153,10 +211,12 @@ class Plan44WebApi:
         token: Any = None
         try:
             with opener.open(self._base + "/tok/json", timeout=15) as tr:
-                token = json.loads(tr.read().decode("utf-8"))
+                token = json.loads(self._read_capped(tr))
         except urllib.error.HTTPError as err:
             if err.code != 404:
                 raise Plan44WebApiError(f"token request failed: {err}") from err
+        except ssl.SSLError as err:
+            raise Plan44WebApiError(self._cert_error_message(err)) from err
         except OSError as err:
             raise Plan44WebApiError(f"cannot reach {self._base}: {err}") from err
 
@@ -171,9 +231,29 @@ class Plan44WebApi:
         )
         try:
             with opener.open(req, timeout=20) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                return json.loads(self._read_capped(resp))
+        except ssl.SSLError as err:
+            raise Plan44WebApiError(self._cert_error_message(err)) from err
         except (OSError, json.JSONDecodeError) as err:
             raise Plan44WebApiError(f"vdc API request failed: {err}") from err
+
+    @staticmethod
+    def _read_capped(resp: Any) -> str:
+        """Read a response body, refusing anything implausibly large."""
+        raw = resp.read(_MAX_RESPONSE_BYTES + 1)
+        if len(raw) > _MAX_RESPONSE_BYTES:
+            raise Plan44WebApiError(
+                f"vdc API response exceeds {_MAX_RESPONSE_BYTES} bytes; refusing"
+            )
+        return raw.decode("utf-8")
+
+    @staticmethod
+    def _cert_error_message(err: ssl.SSLError) -> str:
+        return (
+            "TLS certificate verification failed — the bridge certificate may "
+            "have changed. Remove and re-add the plan44 web credentials in the "
+            f"options to re-pin the new certificate. ({err})"
+        )
 
 
 _DESCRIPTIONS_QUERY: dict[str, Any] = {
@@ -218,7 +298,13 @@ _STATES_QUERY: dict[str, Any] = {
 def _iter_devices(payload: Any) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
 
-    def visit(node: Any) -> None:
+    def visit(node: Any, depth: int) -> None:
+        if depth > _MAX_PARSE_DEPTH:
+            _LOGGER.warning(
+                "plan44 web API response nested deeper than %s levels; stopping",
+                _MAX_PARSE_DEPTH,
+            )
+            return
         if isinstance(node, dict):
             if "dSUID" in node and (
                 "sensorDescriptions" in node
@@ -228,12 +314,12 @@ def _iter_devices(payload: Any) -> list[dict[str, Any]]:
             ):
                 found.append(node)
             for value in node.values():
-                visit(value)
+                visit(value, depth + 1)
         elif isinstance(node, list):
             for value in node:
-                visit(value)
+                visit(value, depth + 1)
 
-    visit(payload)
+    visit(payload, 0)
     return found
 
 

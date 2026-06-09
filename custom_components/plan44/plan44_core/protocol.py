@@ -131,7 +131,11 @@ def parse_incoming_message(
     if message.get("message") != "channel" or not message.get("tag"):
         return None
 
-    value = float(message.get("value", 0))
+    try:
+        value = float(message.get("value", 0))
+    except TypeError, ValueError:
+        # A malformed value must not crash the reader loop / disconnect us.
+        return None
     device_id = str(message["tag"])
 
     if kind == "switch":

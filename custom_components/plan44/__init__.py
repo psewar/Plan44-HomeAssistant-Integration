@@ -20,6 +20,7 @@ from .const import (
     CONF_PORT,
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
+    CONF_WEB_CERT,
     CONF_WEB_PASSWORD,
     CONF_WEB_POLL_INTERVAL,
     CONF_WEB_USER,
@@ -37,7 +38,7 @@ from .coordinator import Plan44Coordinator
 from .device_coordinator import Plan44DeviceCoordinator
 from .plan44_client import Plan44Client
 from .store import Plan44Store
-from .web_client import Plan44WebApi, default_web_url
+from .web_client import Plan44WebApi, default_web_url, fetch_server_cert_pem
 
 PLATFORMS = ["binary_sensor", "sensor"]
 
@@ -179,7 +180,20 @@ async def _async_setup_web_api(
     if not url:
         return None, None
 
-    web_api = Plan44WebApi(hass, str(url), str(user), str(password))
+    # Trust-on-first-use: pin the bridge's self-signed certificate so later
+    # calls verify the peer. Fetch + persist it once; if it can't be fetched,
+    # keep working unpinned and retry on the next setup.
+    pinned_cert = merged.get(CONF_WEB_CERT)
+    if not pinned_cert:
+        pinned_cert = await hass.async_add_executor_job(fetch_server_cert_pem, url)
+        if pinned_cert:
+            hass.config_entries.async_update_entry(
+                entry, data={**entry.data, CONF_WEB_CERT: pinned_cert}
+            )
+
+    web_api = Plan44WebApi(
+        hass, str(url), str(user), str(password), pinned_cert=pinned_cert
+    )
     interval = int(merged.get(CONF_WEB_POLL_INTERVAL, DEFAULT_WEB_POLL_INTERVAL))
     device_coordinator = Plan44DeviceCoordinator(hass, entry, web_api, interval)
     try:

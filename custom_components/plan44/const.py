@@ -29,6 +29,9 @@ CONF_BLOCKLIST_ENTITY_ID_PREFIXES = "blocklist_entity_id_prefixes"
 CONF_WEB_USER = "web_user"
 CONF_WEB_PASSWORD = "web_password"
 CONF_WEB_POLL_INTERVAL = "web_poll_interval"
+# PEM of the bridge's (self-signed) TLS certificate, pinned on first use (TOFU)
+# so later web-API calls can verify the peer instead of trusting any cert.
+CONF_WEB_CERT = "web_cert_pem"
 
 DEFAULT_PORT = 8999
 DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"

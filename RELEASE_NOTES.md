@@ -1,5 +1,29 @@
 # Release notes
 
+## 0.6.0 — 2026-06-09
+
+Security hardening + clean-up from a full review of the integration.
+
+- **Diagnostics no longer leak the web API password.** The downloadable
+  diagnostics now redact `web_user` and `web_password` (previously only the
+  host/port/model were redacted). Anyone who already shared a diagnostics file
+  should rotate the bridge web password.
+- **The bridge TLS certificate is now pinned (trust-on-first-use)** instead of
+  disabling verification entirely. On first contact the self-signed certificate
+  is fetched and stored; later web-API calls verify the peer against exactly
+  that certificate, which protects against man-in-the-middle on the LAN. If the
+  bridge certificate later changes, the call fails with a clear message — remove
+  and re-add the web credentials in the options to re-pin. (If the certificate
+  can't be fetched, it falls back to the previous unverified behaviour so the
+  integration keeps working.)
+- **Robustness against malformed/hostile bridge responses:** the web-API JSON is
+  parsed with a recursion-depth limit and an 8 MiB response cap; a non-numeric
+  reverse-control value no longer tears down the TCP connection; the TCP connect
+  now has a timeout.
+- **Internal clean-up:** the near-identical `sensor` / `binary_sensor` platform
+  setup is now a single shared helper, and `system_health` no longer assumes the
+  entry is loaded. No user-visible change from these.
+
 ## 0.5.7 — 2026-06-01
 
 - **Imported devices now appear under their own "Plan44 device" sub-entry**
