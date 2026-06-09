@@ -21,13 +21,12 @@ from .const import (
     ATTR_MODEL,
     ATTR_NAME,
     DOMAIN,
-    SUBENTRY_TYPE_P44_DEVICE,
     Plan44ConfigEntry,
 )
 from .coordinator import Plan44Coordinator
 from .device_coordinator import Plan44DeviceCoordinator
 from .device_templates import PLATFORM_SENSOR, ChannelTemplate
-from .inbound import resolve_device
+from .inbound import resolve_device, setup_p44_device_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,32 +46,12 @@ async def async_setup_entry(
     imported device is attributed to its "Plan44 device" sub-entry in the UI
     instead of the generic "devices that don't belong to a sub-entry" bucket.
     """
-    runtime = entry.runtime_data
-
-    for subentry_id, subentry in entry.subentries.items():
-        if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
-            continue
-        data = getattr(subentry, "data", None)
-        if not isinstance(data, Mapping):
-            continue
-
-        if data.get(ATTR_DSUID):
-            if runtime.device_coordinator is None:
-                _LOGGER.warning(
-                    "p44_device %s needs the web API; configure it in options",
-                    subentry_id,
-                )
-                continue
-            entities: list[SensorEntity] = _build_rest_sensors(
-                runtime.device_coordinator, entry.entry_id, subentry_id, data
-            )
-        else:
-            entities = _build_push_sensors(
-                runtime.coordinator, entry.entry_id, subentry_id, data
-            )
-
-        if entities:
-            async_add_entities(entities, config_subentry_id=subentry_id)
+    setup_p44_device_entities(
+        entry,
+        async_add_entities,
+        _build_rest_sensors,
+        _build_push_sensors,
+    )
 
 
 def _build_rest_sensors(

@@ -4,12 +4,24 @@ from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
 
-from .const import CONF_HOST, CONF_PORT, CONF_VDC_MODEL_NAME, Plan44ConfigEntry
+from .const import (
+    CONF_HOST,
+    CONF_PORT,
+    CONF_VDC_MODEL_NAME,
+    CONF_WEB_PASSWORD,
+    CONF_WEB_USER,
+    Plan44ConfigEntry,
+)
 
+# Diagnostics are downloaded and routinely shared (issues, forums), so anything
+# secret or identifying must be redacted.  The web password is the critical one;
+# the user name and host/port are redacted as a courtesy.
 TO_REDACT = {
     CONF_HOST,
     CONF_PORT,
     CONF_VDC_MODEL_NAME,
+    CONF_WEB_USER,
+    CONF_WEB_PASSWORD,
 }
 
 

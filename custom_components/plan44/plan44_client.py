@@ -25,6 +25,8 @@ JsonDict = dict[str, Any]
 IncomingCallback = Callable[[JsonDict], Awaitable[None]]
 DisconnectCallback = Callable[[], Awaitable[None]]
 
+CONNECT_TIMEOUT_SECONDS = 15
+
 
 class Plan44Client:
     def __init__(
@@ -55,10 +57,11 @@ class Plan44Client:
         if self.is_connected:
             return
 
-        self._reader, self._writer = await asyncio.open_connection(
-            self.host,
-            self.port,
-        )
+        async with asyncio.timeout(CONNECT_TIMEOUT_SECONDS):
+            self._reader, self._writer = await asyncio.open_connection(
+                self.host,
+                self.port,
+            )
         _LOGGER.info("Connected to plan44 at %s:%s", self.host, self.port)
 
         await self.async_send(build_initvdc_message(self.vdc_model_name))

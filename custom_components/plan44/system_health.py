@@ -21,7 +21,11 @@ async def system_health_info(hass: HomeAssistant) -> dict[str, object]:
         return {"configured_entries": 0}
 
     entry = cast(Plan44ConfigEntry, entries[0])
-    runtime = entry.runtime_data
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is None:
+        # Entry present but not loaded (e.g. failed setup).
+        return {"configured_entries": len(entries), "connected": False}
+
     exports = runtime.store.data.get("exports", {})
     return {
         "configured_entries": len(entries),
