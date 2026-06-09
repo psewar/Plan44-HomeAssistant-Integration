@@ -30,6 +30,7 @@ from .const import (
     CONF_RECONNECT_INTERVAL,
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
+    CONF_WEB_CERT,
     CONF_WEB_PASSWORD,
     CONF_WEB_POLL_INTERVAL,
     CONF_WEB_USER,
@@ -656,7 +657,13 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         url = default_web_url(merged.get(CONF_HOST))
         if not url:
             return None
-        return Plan44WebApi(self.hass, str(url), str(user), str(password))
+        return Plan44WebApi(
+            self.hass,
+            str(url),
+            str(user),
+            str(password),
+            pinned_cert=merged.get(CONF_WEB_CERT),
+        )
 
     async def async_step_user(
         self,

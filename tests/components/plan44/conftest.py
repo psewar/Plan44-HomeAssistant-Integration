@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -42,6 +43,13 @@ TEST_ENTRY_DATA = {
 def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
     """Load integrations from custom_components/ so plan44 is discoverable."""
     return
+
+
+@pytest.fixture(autouse=True)
+def stub_cert_fetch() -> Iterator[None]:
+    """Avoid a real TLS socket call during setup (TOFU certificate pinning)."""
+    with patch("custom_components.plan44.fetch_server_cert_pem", return_value=None):
+        yield
 
 
 @pytest.fixture
