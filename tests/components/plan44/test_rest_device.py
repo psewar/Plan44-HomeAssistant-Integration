@@ -13,10 +13,15 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.plan44.const import (
     ATTR_CHANNELS,
+    ATTR_COLOR_TEMP_MAX_MIRED,
+    ATTR_COLOR_TEMP_MIN_MIRED,
     ATTR_DSUID,
+    ATTR_HAS_COLOR_TEMP,
+    ATTR_HAS_HS_COLOR,
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_P44_TAG,
+    ATTR_PLATFORM,
     ATTR_TEMPLATE,
     CONF_AUTO_REPUBLISH,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
@@ -35,8 +40,10 @@ from custom_components.plan44.const import (
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
     DOMAIN,
+    KIND_LIGHT,
     SUBENTRY_TYPE_P44_DEVICE,
 )
+from custom_components.plan44.web_client import LightChannelState
 
 _DSUID = "C153DD0BD8F15C0EC0731588056C0C7B00"
 _DATA = {
@@ -261,3 +268,125 @@ async def test_rest_device_reconfigure_is_name_only(
     assert data[ATTR_CHANNELS] == _CHANNELS  # channels preserved
     assert ATTR_P44_TAG not in data  # no leftover tag injected
     assert ATTR_TEMPLATE not in data
+
+
+# ---------------------------------------------------------------------------
+# Light (output) device tests
+# ---------------------------------------------------------------------------
+
+_LIGHT_DSUID = "FABCDE0102030405060708090A0B0C0D0E"
+_LIGHT_SUBENTRY_DATA = MappingProxyType(
+    {
+        ATTR_DSUID: _LIGHT_DSUID,
+        ATTR_NAME: "HueIris Kay",
+        ATTR_MODEL: "Extended color light",
+        ATTR_PLATFORM: KIND_LIGHT,
+        ATTR_HAS_COLOR_TEMP: True,
+        ATTR_COLOR_TEMP_MIN_MIRED: 153.0,
+        ATTR_COLOR_TEMP_MAX_MIRED: 500.0,
+        ATTR_HAS_HS_COLOR: True,
+    }
+)
+_LIGHT_STATES_MOCK = {
+    _LIGHT_DSUID: LightChannelState(
+        brightness=80.0,
+        color_temp_mired=250.0,
+        hue=120.0,
+        saturation=100.0,
+    )
+}
+
+
+def _make_light_entry(hass: HomeAssistant) -> MockConfigEntry:
+    entry = MockConfigEntry(domain=DOMAIN, title="plan44", data=_DATA, options={})
+    entry.add_to_hass(hass)
+    subentry = ConfigSubentry(
+        subentry_type=SUBENTRY_TYPE_P44_DEVICE,
+        title="HueIris Kay",
+        data=_LIGHT_SUBENTRY_DATA,
+        unique_id=None,
+    )
+    hass.config_entries.async_add_subentry(entry, subentry)
+    return entry
+
+
+async def test_light_entity_created(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    entities = [
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    ]
+    assert len(entities) == 1
+    assert entities[0].domain == "light"
+
+
+async def test_light_entity_state_reflects_poll(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    light_entry = next(
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    )
+    state = hass.states.get(light_entry.entity_id)
+    assert state is not None
+    assert state.state == "on"
+    assert state.attributes.get("brightness") == round(80.0 / 100 * 255)
+    # hs color_mode: HA exposes hs_color, not color_temp_kelvin
+    assert state.attributes.get("hs_color") == (120.0, 100.0)
+
+
+async def test_light_entity_unavailable_without_data(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value={}),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    light_entry = next(
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    )
+    state = hass.states.get(light_entry.entity_id)
+    assert state is not None
+    assert state.state == "unavailable"
+
+
+async def test_light_entity_linked_to_subentry(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    subentry_id = next(iter(entry.subentries))
+    registry = async_get_entity_registry(hass)
+    ents = [
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    ]
+    assert len(ents) == 1
+    assert ents[0].config_subentry_id == subentry_id

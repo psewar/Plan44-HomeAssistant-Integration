@@ -10,10 +10,13 @@ import pytest
 from custom_components.plan44.web_client import (
     PLATFORM_BINARY_SENSOR,
     PLATFORM_SENSOR,
+    LightChannelState,
     build_ssl_context,
     default_web_url,
     fetch_server_cert_pem,
     parse_devices,
+    parse_light_devices,
+    parse_light_states,
     parse_states,
 )
 
@@ -177,6 +180,179 @@ def test_parse_states_missing_value_is_none() -> None:
     payload = _payload([{"dSUID": "AAA", "sensorStates": {"temperature": {}}}])
     states = parse_states(payload, {"AAA"})
     assert states["AAA"][PLATFORM_SENSOR]["temperature"] is None
+
+
+# ---------------------------------------------------------------------------
+# parse_light_devices
+# ---------------------------------------------------------------------------
+
+
+def _hue_full_color_device(dsuid: str = "LGT01") -> dict[str, Any]:
+    return {
+        "dSUID": dsuid,
+        "name": "HueIris Kay",
+        "model": "Extended color light",
+        "outputSettings": {"mode": 2, "colorClass": 1},
+        "channelDescriptions": {
+            "brightness": {"min": 0.0, "max": 100.0},
+            "hue": {"min": 0.0, "max": 360.0},
+            "saturation": {"min": 0.0, "max": 100.0},
+            "colortemp": {"min": 153.0, "max": 500.0},
+            "x": {"min": 0.0, "max": 1.0},
+            "y": {"min": 0.0, "max": 1.0},
+        },
+    }
+
+
+def _hue_ct_only_device(dsuid: str = "LGT02") -> dict[str, Any]:
+    return {
+        "dSUID": dsuid,
+        "name": "HueAmbiance",
+        "model": "Color temperature light",
+        "outputSettings": {"mode": 2},
+        "channelDescriptions": {
+            "brightness": {"min": 0.0, "max": 100.0},
+            "colortemp": {"min": 153.0, "max": 454.0},
+        },
+    }
+
+
+def test_parse_light_devices_full_color() -> None:
+    payload = _payload([_hue_full_color_device()])
+    devices = parse_light_devices(payload)
+    assert len(devices) == 1
+    dev = devices[0]
+    assert dev.dsuid == "LGT01"
+    assert dev.name == "HueIris Kay"
+    assert dev.model == "Extended color light"
+    assert dev.has_color_temp is True
+    assert dev.has_hs_color is True
+    assert dev.color_temp_min_mired == 153.0
+    assert dev.color_temp_max_mired == 500.0
+
+
+def test_parse_light_devices_color_temp_only() -> None:
+    payload = _payload([_hue_ct_only_device()])
+    devices = parse_light_devices(payload)
+    assert len(devices) == 1
+    dev = devices[0]
+    assert dev.has_color_temp is True
+    assert dev.has_hs_color is False
+    assert dev.color_temp_min_mired == 153.0
+    assert dev.color_temp_max_mired == 454.0
+
+
+def test_parse_light_devices_skips_no_brightness() -> None:
+    payload = _payload(
+        [
+            {
+                "dSUID": "NOPE",
+                "name": "Switch",
+                "outputSettings": {"mode": 0},
+                "channelDescriptions": {"relay": {"min": 0.0, "max": 1.0}},
+            }
+        ]
+    )
+    assert parse_light_devices(payload) == []
+
+
+def test_parse_light_devices_skips_no_output_settings() -> None:
+    payload = _payload(
+        [
+            {
+                "dSUID": "NOPE",
+                "name": "Sensor",
+                "channelDescriptions": {"brightness": {"min": 0.0, "max": 100.0}},
+            }
+        ]
+    )
+    assert parse_light_devices(payload) == []
+
+
+def test_parse_light_devices_multiple() -> None:
+    payload = _payload([_hue_full_color_device("LGT01"), _hue_ct_only_device("LGT02")])
+    devices = parse_light_devices(payload)
+    assert len(devices) == 2
+    dsuids = {d.dsuid for d in devices}
+    assert dsuids == {"LGT01", "LGT02"}
+
+
+# ---------------------------------------------------------------------------
+# parse_light_states
+# ---------------------------------------------------------------------------
+
+
+def _state_payload(devices: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "result": {
+            "x-p44-vdcs": {
+                "vdc0": {"x-p44-devices": {str(i): d for i, d in enumerate(devices)}}
+            }
+        }
+    }
+
+
+def _full_color_state(dsuid: str = "LGT01") -> dict[str, Any]:
+    return {
+        "dSUID": dsuid,
+        "channelDescriptions": {"brightness": {}},
+        "channelStates": {
+            "brightness": {"value": 80.0},
+            "colortemp": {"value": 250.0},
+            "hue": {"value": 120.0},
+            "saturation": {"value": 100.0},
+        },
+    }
+
+
+def test_parse_light_states_full() -> None:
+    payload = _state_payload([_full_color_state()])
+    states = parse_light_states(payload, {"LGT01"})
+    assert set(states) == {"LGT01"}
+    ls = states["LGT01"]
+    assert isinstance(ls, LightChannelState)
+    assert ls.brightness == 80.0
+    assert ls.color_temp_mired == 250.0
+    assert ls.hue == 120.0
+    assert ls.saturation == 100.0
+
+
+def test_parse_light_states_filters_by_dsuid() -> None:
+    payload = _state_payload([_full_color_state("LGT01"), _full_color_state("LGT02")])
+    states = parse_light_states(payload, {"LGT01"})
+    assert set(states) == {"LGT01"}
+
+
+def test_parse_light_states_missing_optional_channels() -> None:
+    payload = _state_payload(
+        [
+            {
+                "dSUID": "LGT03",
+                "channelDescriptions": {"brightness": {}},
+                "channelStates": {"brightness": {"value": 50.0}},
+            }
+        ]
+    )
+    states = parse_light_states(payload, {"LGT03"})
+    ls = states["LGT03"]
+    assert ls.brightness == 50.0
+    assert ls.color_temp_mired is None
+    assert ls.hue is None
+    assert ls.saturation is None
+
+
+def test_parse_light_states_skips_no_brightness() -> None:
+    payload = _state_payload(
+        [
+            {
+                "dSUID": "LGT04",
+                "channelDescriptions": {"brightness": {}},
+                "channelStates": {"colortemp": {"value": 300.0}},
+            }
+        ]
+    )
+    states = parse_light_states(payload, {"LGT04"})
+    assert states == {}
 
 
 def test_ssl_context_unpinned_disables_verification() -> None:

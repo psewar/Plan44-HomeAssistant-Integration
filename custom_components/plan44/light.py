@@ -10,9 +10,9 @@ from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_HS_COLOR,
-    ColorMode,
     LightEntity,
 )
+from homeassistant.components.light.const import ColorMode
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -57,7 +57,6 @@ async def async_setup_entry(
         if not dsuid:
             continue
 
-        has_color_temp = bool(data.get(ATTR_HAS_COLOR_TEMP, False))
         entity = Plan44RestLight(
             coordinator=runtime.device_coordinator,
             entry_id=entry.entry_id,
@@ -65,7 +64,7 @@ async def async_setup_entry(
             dsuid=str(dsuid),
             device_name=str(data.get(ATTR_NAME) or dsuid),
             model=str(data.get(ATTR_MODEL) or "") or None,
-            has_color_temp=has_color_temp,
+            has_color_temp=bool(data.get(ATTR_HAS_COLOR_TEMP, False)),
             color_temp_min_mired=float(data.get(ATTR_COLOR_TEMP_MIN_MIRED, 100.0)),
             color_temp_max_mired=float(data.get(ATTR_COLOR_TEMP_MAX_MIRED, 1000.0)),
             has_hs_color=bool(data.get(ATTR_HAS_HS_COLOR, False)),
@@ -105,15 +104,26 @@ class Plan44RestLight(LightEntity):
             manufacturer="plan44",
         )
 
-        modes: set[ColorMode] = {ColorMode.BRIGHTNESS}
-        if has_color_temp:
-            modes.add(ColorMode.COLOR_TEMP)
+        # HA validates that BRIGHTNESS is not combined with other color modes;
+        # HS and COLOR_TEMP already imply brightness control.
+        modes: set[ColorMode] = set()
         if has_hs_color:
             modes.add(ColorMode.HS)
+        if has_color_temp:
+            modes.add(ColorMode.COLOR_TEMP)
+        if not modes:
+            modes.add(ColorMode.BRIGHTNESS)
         self._attr_supported_color_modes = modes
 
+        if has_hs_color:
+            self._attr_color_mode: ColorMode | None = ColorMode.HS
+        elif has_color_temp:
+            self._attr_color_mode = ColorMode.COLOR_TEMP
+        else:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+
         if has_color_temp and color_temp_max_mired > 0:
-            # mired → kelvin: 1_000_000 / mired
+            # mired → kelvin conversion: 1_000_000 / mired
             # warmest (high mired) = lowest kelvin; coldest (low mired) = highest kelvin
             self._attr_min_color_temp_kelvin = max(
                 1, round(1_000_000 / color_temp_max_mired)
@@ -122,60 +132,11 @@ class Plan44RestLight(LightEntity):
                 1_000_000 / max(1, color_temp_min_mired)
             )
 
-        # Track which color mode was last requested so we can report it accurately.
-        if has_hs_color:
-            self._current_color_mode: ColorMode = ColorMode.HS
-        elif has_color_temp:
-            self._current_color_mode = ColorMode.COLOR_TEMP
-        else:
-            self._current_color_mode = ColorMode.BRIGHTNESS
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-
-    def _light_state(self) -> Any:
-        return (self._coordinator.data or {}).get(self._dsuid, {}).get("light")
-
-    # ------------------------------------------------------------------
-    # LightEntity properties
-
-    @property
-    def available(self) -> bool:
-        return self._coordinator.last_update_success and self._light_state() is not None
-
-    @property
-    def color_mode(self) -> ColorMode:
-        return self._current_color_mode
-
-    @property
-    def is_on(self) -> bool | None:
-        ls = self._light_state()
-        return (ls.brightness > 0) if ls is not None else None
-
-    @property
-    def brightness(self) -> int | None:
-        ls = self._light_state()
-        if ls is None:
-            return None
-        return round(ls.brightness / 100 * 255)
-
-    @property
-    def color_temp_kelvin(self) -> int | None:
-        if not self._has_color_temp:
-            return None
-        ls = self._light_state()
-        if ls is None or not ls.color_temp_mired or ls.color_temp_mired <= 0:
-            return None
-        return round(1_000_000 / ls.color_temp_mired)
-
-    @property
-    def hs_color(self) -> tuple[float, float] | None:
-        if not self._has_hs_color:
-            return None
-        ls = self._light_state()
-        if ls is None or ls.hue is None or ls.saturation is None:
-            return None
-        return (ls.hue, ls.saturation)
+        self._attr_available = False
+        self._attr_is_on = None
+        self._attr_brightness = None
+        self._attr_color_temp_kelvin: int | None = None
+        self._attr_hs_color: tuple[float, float] | None = None
 
     # ------------------------------------------------------------------
     # Coordinator subscription
@@ -187,6 +148,25 @@ class Plan44RestLight(LightEntity):
 
     @callback
     def _handle_update(self) -> None:
+        data = self._coordinator.data or {}
+        ls = data.get(self._dsuid, {}).get("light")
+        self._attr_available = self._coordinator.last_update_success and ls is not None
+        if ls is not None:
+            self._attr_is_on = ls.brightness > 0
+            self._attr_brightness = round(ls.brightness / 100 * 255)
+            if self._has_color_temp and ls.color_temp_mired and ls.color_temp_mired > 0:
+                self._attr_color_temp_kelvin = round(1_000_000 / ls.color_temp_mired)
+            else:
+                self._attr_color_temp_kelvin = None
+            if self._has_hs_color and ls.hue is not None and ls.saturation is not None:
+                self._attr_hs_color = (ls.hue, ls.saturation)
+            else:
+                self._attr_hs_color = None
+        else:
+            self._attr_is_on = None
+            self._attr_brightness = None
+            self._attr_color_temp_kelvin = None
+            self._attr_hs_color = None
         self.async_write_ha_state()
 
     # ------------------------------------------------------------------
@@ -199,21 +179,21 @@ class Plan44RestLight(LightEntity):
         if brightness_ha is not None:
             channels["brightness"] = round(brightness_ha / 255 * 100, 2)
         else:
-            ls = self._light_state()
+            ls = (self._coordinator.data or {}).get(self._dsuid, {}).get("light")
             if ls is None or ls.brightness == 0:
                 channels["brightness"] = 100.0
 
         if ATTR_COLOR_TEMP_KELVIN in kwargs and self._has_color_temp:
             channels["colortemp"] = round(1_000_000 / kwargs[ATTR_COLOR_TEMP_KELVIN], 1)
-            self._current_color_mode = ColorMode.COLOR_TEMP
+            self._attr_color_mode = ColorMode.COLOR_TEMP
 
         if ATTR_HS_COLOR in kwargs and self._has_hs_color:
             h, s = kwargs[ATTR_HS_COLOR]
             channels["hue"] = float(h)
             channels["saturation"] = float(s)
-            self._current_color_mode = ColorMode.HS
+            self._attr_color_mode = ColorMode.HS
             if "brightness" not in channels:
-                ls = self._light_state()
+                ls = (self._coordinator.data or {}).get(self._dsuid, {}).get("light")
                 if ls is None or ls.brightness == 0:
                     channels["brightness"] = 100.0
 
