@@ -30,6 +30,7 @@ from .const import (
     CONF_RECONNECT_INTERVAL,
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
+    CONF_VERIFY_SSL,
     CONF_WEB_CERT,
     CONF_WEB_PASSWORD,
     CONF_WEB_POLL_INTERVAL,
@@ -41,6 +42,7 @@ from .const import (
     DEFAULT_RECONNECT_INTERVAL,
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
+    DEFAULT_VERIFY_SSL,
     DEFAULT_WEB_POLL_INTERVAL,
     DOMAIN,
     KIND_BINARY_SENSOR,
@@ -169,6 +171,10 @@ def _options_schema(
                 CONF_WEB_POLL_INTERVAL,
                 default=current.get(CONF_WEB_POLL_INTERVAL, DEFAULT_WEB_POLL_INTERVAL),
             ): int,
+            vol.Optional(
+                CONF_VERIFY_SSL,
+                default=current.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+            ): bool,
         }
     )
 

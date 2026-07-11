@@ -32,6 +32,9 @@ CONF_WEB_POLL_INTERVAL = "web_poll_interval"
 # PEM of the bridge's (self-signed) TLS certificate, pinned on first use (TOFU)
 # so later web-API calls can verify the peer instead of trusting any cert.
 CONF_WEB_CERT = "web_cert_pem"
+# When False the TLS certificate is not verified and TOFU pinning is skipped.
+# Intended as a temporary workaround for CA-chain issues.
+CONF_VERIFY_SSL = "verify_ssl"
 
 DEFAULT_PORT = 8999
 DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"
@@ -41,6 +44,7 @@ DEFAULT_RECONNECT_INTERVAL = 10
 DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 DEFAULT_WEB_POLL_INTERVAL = 30
+DEFAULT_VERIFY_SSL = True
 
 SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"
 SUBENTRY_TYPE_P44_DEVICE = "p44_device"
