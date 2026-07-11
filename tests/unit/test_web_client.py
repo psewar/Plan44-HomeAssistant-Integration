@@ -297,9 +297,9 @@ def _state_payload(devices: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _full_color_state(dsuid: str = "LGT01") -> dict[str, Any]:
+    # Real state-query responses have channelStates only (no channelDescriptions).
     return {
         "dSUID": dsuid,
-        "channelDescriptions": {"brightness": {}},
         "channelStates": {
             "brightness": {"value": 80.0},
             "colortemp": {"value": 250.0},
@@ -331,12 +331,21 @@ def test_parse_light_states_filters_by_dsuid() -> None:
     assert set(states) == {"LGT01"}
 
 
+def test_parse_light_states_without_channel_descriptions() -> None:
+    # Regression: state-query responses have no channelDescriptions — nodes
+    # must still be found by _iter_light_nodes.
+    payload = _state_payload(
+        [{"dSUID": "LGT05", "channelStates": {"brightness": {"value": 60.0}}}]
+    )
+    states = parse_light_states(payload, {"LGT05"})
+    assert states["LGT05"].brightness == 60.0
+
+
 def test_parse_light_states_missing_optional_channels() -> None:
     payload = _state_payload(
         [
             {
                 "dSUID": "LGT03",
-                "channelDescriptions": {"brightness": {}},
                 "channelStates": {"brightness": {"value": 50.0}},
             }
         ]
@@ -356,7 +365,6 @@ def test_parse_light_states_skips_no_brightness() -> None:
         [
             {
                 "dSUID": "LGT04",
-                "channelDescriptions": {"brightness": {}},
                 "channelStates": {"colortemp": {"value": 300.0}},
             }
         ]

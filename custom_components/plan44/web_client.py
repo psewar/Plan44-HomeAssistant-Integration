@@ -511,14 +511,16 @@ def parse_states(
 
 
 def _iter_light_nodes(payload: Any) -> list[dict[str, Any]]:
-    """Yield device nodes that have a channelDescriptions key."""
+    """Yield device nodes that carry channel data (descriptions or states)."""
     found: list[dict[str, Any]] = []
 
     def visit(node: Any, depth: int) -> None:
         if depth > _MAX_PARSE_DEPTH:
             return
         if isinstance(node, dict):
-            if "dSUID" in node and "channelDescriptions" in node:
+            if "dSUID" in node and (
+                "channelDescriptions" in node or "channelStates" in node
+            ):
                 found.append(node)
             for value in node.values():
                 visit(value, depth + 1)
