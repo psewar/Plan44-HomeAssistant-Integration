@@ -586,15 +586,51 @@ def parse_light_states(payload: Any, dsuids: set[str]) -> dict[str, LightChannel
         channel_states = dev.get("channelStates")
         if not isinstance(channel_states, dict):
             continue
-        brightness = _channel_state_value(channel_states, "brightness")
-        if brightness is None:
+        ls = parse_push_light_channel_states(channel_states)
+        if ls is None:
             continue
-        result[dsuid] = LightChannelState(
-            brightness=brightness,
-            color_temp_mired=_channel_state_value(channel_states, "colortemp"),
-            hue=_channel_state_value(channel_states, "hue"),
-            saturation=_channel_state_value(channel_states, "saturation"),
-            x=_channel_state_value(channel_states, "x"),
-            y=_channel_state_value(channel_states, "y"),
-        )
+        result[dsuid] = ls
     return result
+
+
+def parse_push_light_channel_states(
+    channel_states: dict[str, Any],
+) -> LightChannelState | None:
+    """Parse a channelStates dict from a TCP push notification.
+
+    Takes the inner ``channelStates`` mapping directly — same structure the HTTP
+    poll returns, but without the outer API envelope.
+    """
+    brightness = _channel_state_value(channel_states, "brightness")
+    if brightness is None:
+        return None
+    return LightChannelState(
+        brightness=brightness,
+        color_temp_mired=_channel_state_value(channel_states, "colortemp"),
+        hue=_channel_state_value(channel_states, "hue"),
+        saturation=_channel_state_value(channel_states, "saturation"),
+        x=_channel_state_value(channel_states, "x"),
+        y=_channel_state_value(channel_states, "y"),
+    )
+
+
+def parse_push_sensor_states(
+    msg: dict[str, Any],
+) -> dict[str, dict[str, Any]] | None:
+    """Parse sensorStates/binaryInputStates from a TCP push notification.
+
+    Returns the same per-device structure as ``parse_states``:
+    ``{PLATFORM_SENSOR: {key: value}, PLATFORM_BINARY_SENSOR: {key: value}}``.
+    Returns ``None`` when neither payload key is present.
+    """
+    sensor_states = msg.get("sensorStates")
+    binary_input_states = msg.get("binaryInputStates")
+    if sensor_states is None and binary_input_states is None:
+        return None
+    sensors: dict[str, Any] = {
+        key: state.get("value") for key, state in _items(sensor_states)
+    }
+    inputs: dict[str, Any] = {
+        key: state.get("value") for key, state in _items(binary_input_states)
+    }
+    return {PLATFORM_SENSOR: sensors, PLATFORM_BINARY_SENSOR: inputs}

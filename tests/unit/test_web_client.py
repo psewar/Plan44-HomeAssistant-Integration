@@ -18,6 +18,8 @@ from custom_components.plan44.web_client import (
     parse_devices,
     parse_light_devices,
     parse_light_states,
+    parse_push_light_channel_states,
+    parse_push_sensor_states,
     parse_states,
 )
 
@@ -401,6 +403,88 @@ def test_fetch_server_cert_pem_handles_unreachable(
 
 def test_fetch_server_cert_pem_rejects_unparseable_url() -> None:
     assert fetch_server_cert_pem("not-a-url") is None
+
+
+# ---------------------------------------------------------------------------
+# parse_push_light_channel_states
+# ---------------------------------------------------------------------------
+
+
+def test_parse_push_light_channel_states_full() -> None:
+    channel_states = {
+        "brightness": {"value": 75.0},
+        "colortemp": {"value": 280.0},
+        "hue": {"value": 200.0},
+        "saturation": {"value": 90.0},
+        "x": {"value": 0.25},
+        "y": {"value": 0.55},
+    }
+    ls = parse_push_light_channel_states(channel_states)
+    assert ls is not None
+    assert ls.brightness == 75.0
+    assert ls.color_temp_mired == 280.0
+    assert ls.hue == 200.0
+    assert ls.saturation == 90.0
+    assert ls.x == pytest.approx(0.25)
+    assert ls.y == pytest.approx(0.55)
+
+
+def test_parse_push_light_channel_states_no_brightness_returns_none() -> None:
+    assert parse_push_light_channel_states({"colortemp": {"value": 300.0}}) is None
+
+
+def test_parse_push_light_channel_states_brightness_only() -> None:
+    ls = parse_push_light_channel_states({"brightness": {"value": 50.0}})
+    assert ls is not None
+    assert ls.brightness == 50.0
+    assert ls.color_temp_mired is None
+    assert ls.hue is None
+    assert ls.x is None
+
+
+# parse_push_sensor_states
+# ---------------------------------------------------------------------------
+
+
+def test_parse_push_sensor_states_full() -> None:
+    msg = {
+        "message": "sensorStates",
+        "dSUID": "ABC123",
+        "sensorStates": {"temperature": {"value": 21.5}, "humidity": {"value": 65.0}},
+        "binaryInputStates": {"low_battery": {"value": False}},
+    }
+    result = parse_push_sensor_states(msg)
+    assert result is not None
+    assert result[PLATFORM_SENSOR] == {"temperature": 21.5, "humidity": 65.0}
+    assert result[PLATFORM_BINARY_SENSOR] == {"low_battery": False}
+
+
+def test_parse_push_sensor_states_sensor_only() -> None:
+    msg = {
+        "message": "sensorStates",
+        "dSUID": "ABC123",
+        "sensorStates": {"temperature": {"value": 18.0}},
+    }
+    result = parse_push_sensor_states(msg)
+    assert result is not None
+    assert result[PLATFORM_SENSOR] == {"temperature": 18.0}
+    assert result[PLATFORM_BINARY_SENSOR] == {}
+
+
+def test_parse_push_sensor_states_binary_input_only() -> None:
+    msg = {
+        "message": "binaryInputStates",
+        "dSUID": "ABC123",
+        "binaryInputStates": {"low_battery": {"value": True}},
+    }
+    result = parse_push_sensor_states(msg)
+    assert result is not None
+    assert result[PLATFORM_SENSOR] == {}
+    assert result[PLATFORM_BINARY_SENSOR] == {"low_battery": True}
+
+
+def test_parse_push_sensor_states_no_payload_returns_none() -> None:
+    assert parse_push_sensor_states({"message": "channelStates", "dSUID": "X"}) is None
 
 
 def test_parse_devices_survives_pathological_nesting() -> None:

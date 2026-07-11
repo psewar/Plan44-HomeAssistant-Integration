@@ -12,11 +12,18 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import ATTR_DSUID, ATTR_PLATFORM, KIND_LIGHT, SUBENTRY_TYPE_P44_DEVICE
-from .web_client import Plan44WebApi, Plan44WebApiError
+from .web_client import (
+    PLATFORM_BINARY_SENSOR,
+    PLATFORM_SENSOR,
+    Plan44WebApi,
+    Plan44WebApiError,
+    parse_push_light_channel_states,
+    parse_push_sensor_states,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +96,57 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
             ):
                 dsuids.add(str(data[ATTR_DSUID]))
         return dsuids
+
+    @callback
+    def async_apply_push_channel_states(self, dsuid: str, msg: dict[str, Any]) -> None:
+        """Apply a channelStates push notification from the plan44 TCP connection.
+
+        Updates ``self.data`` in-place and notifies listeners immediately — no
+        HTTP poll is triggered.  Unknown dSUIDs are silently ignored.
+        """
+        if dsuid not in self.imported_light_dsuids():
+            return
+        channel_states = msg.get("channelStates")
+        if not isinstance(channel_states, dict):
+            return
+        ls = parse_push_light_channel_states(channel_states)
+        if ls is None:
+            return
+        _LOGGER.debug("Push update for light %s: brightness=%.1f", dsuid, ls.brightness)
+        current = dict(self.data or {})
+        current[dsuid] = {**current.get(dsuid, {}), "light": ls}
+        self.async_set_updated_data(current)
+
+    @callback
+    def async_apply_push_sensor_states(self, dsuid: str, msg: dict[str, Any]) -> None:
+        """Apply a sensorStates/binaryInputStates push notification.
+
+        Merges pushed values into the existing per-device state dict and notifies
+        listeners immediately.  Unknown dSUIDs are silently ignored.
+        """
+        if dsuid not in self.imported_sensor_dsuids():
+            return
+        state_update = parse_push_sensor_states(msg)
+        if state_update is None:
+            return
+        sensors = state_update.get(PLATFORM_SENSOR, {})
+        inputs = state_update.get(PLATFORM_BINARY_SENSOR, {})
+        _LOGGER.debug(
+            "Push update for sensor device %s: %d sensors, %d binary inputs",
+            dsuid,
+            len(sensors),
+            len(inputs),
+        )
+        current = dict(self.data or {})
+        existing = dict(current.get(dsuid, {}))
+        if sensors:
+            merged_sensors = {**existing.get(PLATFORM_SENSOR, {}), **sensors}
+            existing[PLATFORM_SENSOR] = merged_sensors
+        if inputs:
+            merged_inputs = {**existing.get(PLATFORM_BINARY_SENSOR, {}), **inputs}
+            existing[PLATFORM_BINARY_SENSOR] = merged_inputs
+        current[dsuid] = existing
+        self.async_set_updated_data(current)
 
     async def _async_update_data(self) -> DeviceStates:
         sensor_dsuids = self.imported_sensor_dsuids()

@@ -380,6 +380,85 @@ async def test_light_entity_unavailable_without_data(
     assert state.state == "unavailable"
 
 
+async def test_light_entity_push_update(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Push notification via async_apply_push_channel_states updates state."""
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    device_coordinator = entry.runtime_data.device_coordinator
+    assert device_coordinator is not None
+
+    # Simulate a channelStates push notification from the plan44 bridge.
+    push_msg = {
+        "message": "channelStates",
+        "dSUID": _LIGHT_DSUID,
+        "channelStates": {
+            "brightness": {"value": 40.0},
+            "colortemp": {"value": 350.0},
+            "hue": {"value": 240.0},
+            "saturation": {"value": 80.0},
+            "x": {"value": 0.3},
+            "y": {"value": 0.6},
+        },
+    }
+    device_coordinator.async_apply_push_channel_states(_LIGHT_DSUID, push_msg)
+    await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    light_entry = next(
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    )
+    state = hass.states.get(light_entry.entity_id)
+    assert state is not None
+    assert state.state == "on"
+    assert state.attributes.get("brightness") == round(40.0 / 100 * 255)
+    xy = state.attributes.get("xy_color")
+    assert xy is not None
+    assert round(xy[0], 1) == 0.3
+    assert round(xy[1], 1) == 0.6
+
+
+async def test_light_entity_push_update_unknown_dsuid_ignored(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Push for an unknown dSUID does not affect known entity state."""
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    device_coordinator = entry.runtime_data.device_coordinator
+    assert device_coordinator is not None
+
+    push_msg = {
+        "message": "channelStates",
+        "dSUID": "UNKNOWN_DSUID_00000000",
+        "channelStates": {"brightness": {"value": 99.0}},
+    }
+    unknown = "UNKNOWN_DSUID_00000000"
+    device_coordinator.async_apply_push_channel_states(unknown, push_msg)
+    await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    light_entry = next(
+        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+    )
+    state = hass.states.get(light_entry.entity_id)
+    # State should still reflect the original poll data
+    assert state is not None
+    assert state.attributes.get("brightness") == round(80.0 / 100 * 255)
+
+
 async def test_light_entity_linked_to_subentry(
     hass: HomeAssistant, mock_plan44_client: Any
 ) -> None:
@@ -398,3 +477,83 @@ async def test_light_entity_linked_to_subentry(
     ]
     assert len(ents) == 1
     assert ents[0].config_subentry_id == subentry_id
+
+
+async def test_sensor_entity_push_update(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Push via async_apply_push_sensor_states updates sensor entity state."""
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    device_coordinator = entry.runtime_data.device_coordinator
+    assert device_coordinator is not None
+
+    push_msg = {
+        "message": "sensorStates",
+        "dSUID": _DSUID,
+        "sensorStates": {"temperature": {"value": 24.0}},
+        "binaryInputStates": {"low_battery": {"value": True}},
+    }
+    device_coordinator.async_apply_push_sensor_states(_DSUID, push_msg)
+    await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    sensor_entry = next(
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.domain == "sensor"
+    )
+    state = hass.states.get(sensor_entry.entity_id)
+    assert state is not None
+    assert float(state.state) == 24.0
+
+    binary_entry = next(
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.domain == "binary_sensor"
+    )
+    binary_state = hass.states.get(binary_entry.entity_id)
+    assert binary_state is not None
+    assert binary_state.state == "on"
+
+
+async def test_sensor_entity_push_update_unknown_dsuid_ignored(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Push for an unknown dSUID does not affect known sensor entity state."""
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    device_coordinator = entry.runtime_data.device_coordinator
+    assert device_coordinator is not None
+
+    push_msg = {
+        "message": "sensorStates",
+        "dSUID": "UNKNOWN_DSUID_00000000",
+        "sensorStates": {"temperature": {"value": 99.0}},
+    }
+    unknown = "UNKNOWN_DSUID_00000000"
+    device_coordinator.async_apply_push_sensor_states(unknown, push_msg)
+    await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    sensor_entry = next(
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.domain == "sensor"
+    )
+    state = hass.states.get(sensor_entry.entity_id)
+    assert state is not None
+    # Original poll value must be unchanged
+    assert float(state.state) == 21.5

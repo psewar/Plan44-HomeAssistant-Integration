@@ -4,7 +4,10 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable, Mapping
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from .device_coordinator import Plan44DeviceCoordinator
 
 from homeassistant.components import persistent_notification
 from homeassistant.components.light import ATTR_BRIGHTNESS
@@ -49,6 +52,13 @@ _LOGGER = logging.getLogger(__name__)
 MAX_RECONNECT_ATTEMPTS = 10
 MAX_RECONNECT_DELAY_SECONDS = 300
 
+# plan44 push event types for physical device state changes.
+# After subscribing, the bridge sends push messages for each event type when the
+# corresponding device state changes — same inner structure as the HTTP poll.
+_PUSH_EVENT_CHANNEL_STATES = "channelStates"
+_PUSH_EVENT_SENSOR_STATES = "sensorStates"
+_PUSH_EVENT_BINARY_INPUT_STATES = "binaryInputStates"
+
 
 class Plan44Coordinator:
     def __init__(
@@ -76,6 +86,8 @@ class Plan44Coordinator:
         self._inbound_callbacks: dict[tuple[str, str, int], InboundChannelCallback] = {}
         # tag → set of channel indices seen from P44 but not yet imported
         self._discovered_indices_by_tag: dict[str, set[int]] = {}
+        # Coordinator for dSUID-based device polling — receives push notifications
+        self._device_coordinator: Plan44DeviceCoordinator | None = None
 
         reconnect_value = entry.options.get(
             CONF_RECONNECT_INTERVAL,
@@ -97,9 +109,36 @@ class Plan44Coordinator:
             cast(str | list[str], blocked_prefixes),
         )
 
+    def set_device_coordinator(self, dc: Plan44DeviceCoordinator) -> None:
+        """Attach the device coordinator so push notifications can be routed to it."""
+        self._device_coordinator = dc
+
+    async def _async_subscribe_push(self) -> None:
+        """Subscribe to plan44 push events for all physical device state changes."""
+        try:
+            await self.client.async_send(
+                {
+                    "message": "subscribe",
+                    "events": [
+                        _PUSH_EVENT_CHANNEL_STATES,
+                        _PUSH_EVENT_SENSOR_STATES,
+                        _PUSH_EVENT_BINARY_INPUT_STATES,
+                    ],
+                }
+            )
+            _LOGGER.debug(
+                "Subscribed to plan44 push events (channel/sensor/input states)"
+            )
+        except Exception:
+            _LOGGER.warning(
+                "plan44: could not subscribe to push events; "
+                "device state updates will rely on polling only"
+            )
+
     async def async_initialize(self) -> None:
         self._refresh_exports()
         await self.client.async_connect()
+        await self._async_subscribe_push()
         self._install_state_listener()
         if self.auto_republish:
             if self.hass.is_running:
@@ -144,6 +183,7 @@ class Plan44Coordinator:
         for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
             try:
                 await self.client.async_connect()
+                await self._async_subscribe_push()
                 if self.auto_republish:
                     await self.async_republish_virtual_devices()
                 _LOGGER.info(
@@ -394,6 +434,33 @@ class Plan44Coordinator:
         self._last_write_ts_by_entity[entity_id] = now
 
     async def async_handle_plan44_message(self, msg: dict[str, Any]) -> None:
+        # dSUID-based messages come from physical devices (e.g. Hue lights via the
+        # plan44 bridge).  Route channelStates notifications to the device coordinator;
+        # log anything else at debug level so we can identify new message types.
+        dsuid_raw = msg.get("dSUID")
+        if dsuid_raw is not None:
+            msg_type = msg.get("message")
+            if msg_type == _PUSH_EVENT_CHANNEL_STATES:
+                if self._device_coordinator is not None:
+                    self._device_coordinator.async_apply_push_channel_states(
+                        str(dsuid_raw), msg
+                    )
+            elif msg_type in (
+                _PUSH_EVENT_SENSOR_STATES,
+                _PUSH_EVENT_BINARY_INPUT_STATES,
+            ):
+                if self._device_coordinator is not None:
+                    self._device_coordinator.async_apply_push_sensor_states(
+                        str(dsuid_raw), msg
+                    )
+            else:
+                _LOGGER.debug(
+                    "plan44 rx dSUID message (type=%r keys=%s)",
+                    msg_type,
+                    list(msg.keys()),
+                )
+            return
+
         tag_raw = msg.get("tag")
         if tag_raw is None:
             return

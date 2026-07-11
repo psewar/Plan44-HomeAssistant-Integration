@@ -1,5 +1,74 @@
 # Release notes
 
+## 0.7.5 — 2026-07-11
+
+### Push updates extended to sensor and binary\_sensor entities
+
+Imported sensor and binary\_sensor devices (EnOcean, etc.) now also update via
+push instead of polling-only.  The integration now subscribes to all three
+plan44 push event types after connecting:
+
+```json
+{"message": "subscribe", "events": ["channelStates", "sensorStates", "binaryInputStates"]}
+```
+
+When the plan44 bridge sends a `sensorStates` or `binaryInputStates`
+notification (e.g. temperature changed, battery went low), the entity state is
+updated immediately — no HTTP round-trip.  Polling continues at the configured
+interval as a reliable fallback and handles devices that do not produce push
+events (e.g. slow EnOcean update-interval sensors).
+
+Previously, sensor/binary\_sensor updates relied on polling alone (default 30 s),
+so a door contact or motion event could be missed for up to 30 s.  With push,
+binary inputs that change state now update instantly.
+
+**Integration class:** `iot_class: local_push` now correctly reflects actual
+behaviour for all three imported device types.
+
+---
+
+## 0.7.4 — 2026-07-11
+
+### Push updates for imported light entities (local\_push)
+
+Light output devices (e.g. Philips Hue lights imported via the plan44 web API)
+now update instantly in Home Assistant whenever their state changes — regardless
+of the source (Hue app, physical dimmer, plan44 scene, or HA itself).
+
+After connecting over TCP, the integration subscribes to
+`channelStates` push events from the plan44 bridge:
+
+```json
+{"message": "subscribe", "events": ["channelStates"]}
+```
+
+When the bridge sends a `channelStates` notification for a known imported light,
+the entity state is updated immediately without an HTTP round-trip.  Polling over
+the web vdc JSON API continues at the configured interval as a reliable fallback
+(in case the bridge firmware does not support the subscription, or a push message
+is lost).  If the subscription is not supported, a `WARNING` is logged once and
+the integration falls back to poll-only automatically.
+
+**Integration class:** `iot_class: local_push` (was already declared; now
+correctly reflects actual behaviour for light entities).
+
+**Also in 0.7.x** (not previously documented):
+
+- **0.7.0** — New `light` platform: import Hue and other output devices from the
+  plan44 bridge as `light` entities.  Brightness, colour temperature, HS colour,
+  and CIE x/y colour (native Hue colour space) are all supported.  Devices are
+  imported via **+ Import P44 device** in the same way as sensors; channel
+  capabilities (colour temp range, HS, XY) are detected automatically from the
+  bridge's `channelDescriptions`.
+- **0.7.2** — XY colour mode: the native CIE x/y channels are preferred over HS
+  when both are present (round-trip-free, more accurate).  HS input from HA is
+  converted to XY before sending to the bridge.
+- **0.7.3** — Fix: imported Hue lights showed "unavailable" immediately after
+  setup.  Root cause: the node-traversal helper used when polling channel states
+  required `channelDescriptions` to be present, but the state-only query returns
+  only `channelStates` — so every polling response matched zero nodes.  Fixed by
+  accepting nodes that carry either `channelDescriptions` **or** `channelStates`.
+
 ## 0.6.0 — 2026-06-09
 
 Security hardening + clean-up from a full review of the integration.

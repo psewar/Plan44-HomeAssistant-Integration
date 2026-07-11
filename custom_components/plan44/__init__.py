@@ -267,6 +267,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         raise ConfigEntryNotReady(f"Unable to connect to plan44: {err}") from err
 
     web_api, device_coordinator = await _async_setup_web_api(hass, entry)
+    if device_coordinator is not None:
+        coordinator.set_device_coordinator(device_coordinator)
 
     entry.runtime_data = Plan44RuntimeData(
         client=client,

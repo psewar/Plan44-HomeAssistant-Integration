@@ -134,7 +134,6 @@ def parse_incoming_message(
     try:
         value = float(message.get("value", 0))
     except TypeError, ValueError:
-        # A malformed value must not crash the reader loop / disconnect us.
         return None
     device_id = str(message["tag"])
 

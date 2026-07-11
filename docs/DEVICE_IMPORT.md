@@ -11,13 +11,40 @@ smoke/contact input.
 
 ## How values flow
 
-Physical plan44 devices do **not** push to the external device API, so the
-integration reads their values from the bridge's **web vdc JSON API** by polling.
-Each imported device becomes one Home Assistant *device*, with one entity per
-sensor/input channel.
+### Light output devices (Hue, dimmable actuators)
 
-Because this is polling, fast-changing inputs such as motion or contact are
-updated at the configured poll interval (default 30 s), not instantly.
+Imported light entities receive **push updates** via the plan44 TCP connection
+(port 8999).  After connecting, the integration subscribes to `channelStates`
+events from the bridge.  When a light changes state — whether from HA, the Hue
+app, a physical dimmer, or a plan44 scene — the bridge sends a `channelStates`
+notification and HA reflects the new state immediately.
+
+Polling over the web vdc JSON API continues at the configured interval as a
+fallback.  If the bridge firmware does not support the subscription (a one-time
+`WARNING` is logged), the integration silently falls back to poll-only.
+
+### Sensor / binary_sensor devices (EnOcean, etc.)
+
+After connecting, the integration also subscribes to `sensorStates` and
+`binaryInputStates` push events.  When the plan44 bridge forwards a sensor
+value change or binary input transition, the entity state is updated
+immediately — no HTTP round-trip.
+
+```json
+{"message": "subscribe", "events": ["channelStates", "sensorStates", "binaryInputStates"]}
+```
+
+A typical push notification for a sensor device looks like:
+
+```json
+{"message": "sensorStates", "dSUID": "...", "sensorStates": {"temperature": {"value": 21.5}},
+ "binaryInputStates": {"low_battery": {"value": false}}}
+```
+
+Polling over the web vdc JSON API continues at the configured interval as
+fallback — useful for devices with slow natural update intervals (e.g. an
+EnOcean temperature sensor that reports every 5 min) or if the bridge
+firmware does not emit push events for a particular device type.
 
 ## 1. Configure the web API (once)
 
