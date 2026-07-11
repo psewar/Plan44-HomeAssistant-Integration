@@ -10,6 +10,7 @@ import pytest
 from custom_components.plan44.web_client import (
     PLATFORM_BINARY_SENSOR,
     PLATFORM_SENSOR,
+    DiscoveredLightDevice,
     LightChannelState,
     build_ssl_context,
     default_web_url,
@@ -222,11 +223,13 @@ def test_parse_light_devices_full_color() -> None:
     devices = parse_light_devices(payload)
     assert len(devices) == 1
     dev = devices[0]
+    assert isinstance(dev, DiscoveredLightDevice)
     assert dev.dsuid == "LGT01"
     assert dev.name == "HueIris Kay"
     assert dev.model == "Extended color light"
     assert dev.has_color_temp is True
     assert dev.has_hs_color is True
+    assert dev.has_xy_color is True
     assert dev.color_temp_min_mired == 153.0
     assert dev.color_temp_max_mired == 500.0
 
@@ -238,6 +241,7 @@ def test_parse_light_devices_color_temp_only() -> None:
     dev = devices[0]
     assert dev.has_color_temp is True
     assert dev.has_hs_color is False
+    assert dev.has_xy_color is False
     assert dev.color_temp_min_mired == 153.0
     assert dev.color_temp_max_mired == 454.0
 
@@ -301,6 +305,8 @@ def _full_color_state(dsuid: str = "LGT01") -> dict[str, Any]:
             "colortemp": {"value": 250.0},
             "hue": {"value": 120.0},
             "saturation": {"value": 100.0},
+            "x": {"value": 0.172},
+            "y": {"value": 0.747},
         },
     }
 
@@ -315,6 +321,8 @@ def test_parse_light_states_full() -> None:
     assert ls.color_temp_mired == 250.0
     assert ls.hue == 120.0
     assert ls.saturation == 100.0
+    assert ls.x == pytest.approx(0.172)
+    assert ls.y == pytest.approx(0.747)
 
 
 def test_parse_light_states_filters_by_dsuid() -> None:
@@ -339,6 +347,8 @@ def test_parse_light_states_missing_optional_channels() -> None:
     assert ls.color_temp_mired is None
     assert ls.hue is None
     assert ls.saturation is None
+    assert ls.x is None
+    assert ls.y is None
 
 
 def test_parse_light_states_skips_no_brightness() -> None:

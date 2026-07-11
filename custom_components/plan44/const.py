@@ -84,6 +84,7 @@ ATTR_HAS_COLOR_TEMP = "has_color_temp"
 ATTR_COLOR_TEMP_MIN_MIRED = "color_temp_min_mired"
 ATTR_COLOR_TEMP_MAX_MIRED = "color_temp_max_mired"
 ATTR_HAS_HS_COLOR = "has_hs_color"
+ATTR_HAS_XY_COLOR = "has_xy_color"
 
 KIND_SWITCH = "switch"
 KIND_LIGHT = "light"

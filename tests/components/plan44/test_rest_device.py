@@ -18,6 +18,7 @@ from custom_components.plan44.const import (
     ATTR_DSUID,
     ATTR_HAS_COLOR_TEMP,
     ATTR_HAS_HS_COLOR,
+    ATTR_HAS_XY_COLOR,
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_P44_TAG,
@@ -285,6 +286,7 @@ _LIGHT_SUBENTRY_DATA = MappingProxyType(
         ATTR_COLOR_TEMP_MIN_MIRED: 153.0,
         ATTR_COLOR_TEMP_MAX_MIRED: 500.0,
         ATTR_HAS_HS_COLOR: True,
+        ATTR_HAS_XY_COLOR: True,
     }
 )
 _LIGHT_STATES_MOCK = {
@@ -293,6 +295,8 @@ _LIGHT_STATES_MOCK = {
         color_temp_mired=250.0,
         hue=120.0,
         saturation=100.0,
+        x=0.172,
+        y=0.747,
     )
 }
 
@@ -348,8 +352,12 @@ async def test_light_entity_state_reflects_poll(
     assert state is not None
     assert state.state == "on"
     assert state.attributes.get("brightness") == round(80.0 / 100 * 255)
-    # hs color_mode: HA exposes hs_color, not color_temp_kelvin
-    assert state.attributes.get("hs_color") == (120.0, 100.0)
+    # XY takes priority over HS when both channels are present
+    assert state.attributes.get("color_mode") == "xy"
+    xy = state.attributes.get("xy_color")
+    assert xy is not None
+    assert round(xy[0], 3) == 0.172
+    assert round(xy[1], 3) == 0.747
 
 
 async def test_light_entity_unavailable_without_data(

@@ -19,6 +19,7 @@ from .const import (
     ATTR_DSUID,
     ATTR_HAS_COLOR_TEMP,
     ATTR_HAS_HS_COLOR,
+    ATTR_HAS_XY_COLOR,
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_P44_INDEX,
@@ -655,6 +656,7 @@ def _serialize_light_device(device: DiscoveredLightDevice) -> ConfigDict:
         ATTR_COLOR_TEMP_MIN_MIRED: device.color_temp_min_mired,
         ATTR_COLOR_TEMP_MAX_MIRED: device.color_temp_max_mired,
         ATTR_HAS_HS_COLOR: device.has_hs_color,
+        ATTR_HAS_XY_COLOR: device.has_xy_color,
     }
 
 

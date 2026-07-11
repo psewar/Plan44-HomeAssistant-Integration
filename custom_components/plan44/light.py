@@ -10,12 +10,14 @@ from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_HS_COLOR,
+    ATTR_XY_COLOR,
     LightEntity,
 )
 from homeassistant.components.light.const import ColorMode
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util.color import color_hs_to_xy
 
 from .const import (
     ATTR_COLOR_TEMP_MAX_MIRED,
@@ -23,6 +25,7 @@ from .const import (
     ATTR_DSUID,
     ATTR_HAS_COLOR_TEMP,
     ATTR_HAS_HS_COLOR,
+    ATTR_HAS_XY_COLOR,
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_PLATFORM,
@@ -68,6 +71,7 @@ async def async_setup_entry(
             color_temp_min_mired=float(data.get(ATTR_COLOR_TEMP_MIN_MIRED, 100.0)),
             color_temp_max_mired=float(data.get(ATTR_COLOR_TEMP_MAX_MIRED, 1000.0)),
             has_hs_color=bool(data.get(ATTR_HAS_HS_COLOR, False)),
+            has_xy_color=bool(data.get(ATTR_HAS_XY_COLOR, False)),
         )
         async_add_entities([entity], config_subentry_id=subentry_id)
 
@@ -91,11 +95,13 @@ class Plan44RestLight(LightEntity):
         color_temp_min_mired: float,
         color_temp_max_mired: float,
         has_hs_color: bool,
+        has_xy_color: bool,
     ) -> None:
         self._coordinator = coordinator
         self._dsuid = dsuid
         self._has_color_temp = has_color_temp
         self._has_hs_color = has_hs_color
+        self._has_xy_color = has_xy_color
         self._attr_unique_id = f"{entry_id}_{subentry_id}_light"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, dsuid)},
@@ -104,10 +110,13 @@ class Plan44RestLight(LightEntity):
             manufacturer="plan44",
         )
 
-        # HA validates that BRIGHTNESS is not combined with other color modes;
-        # HS and COLOR_TEMP already imply brightness control.
+        # HA validates that BRIGHTNESS is not combined with other color modes, and
+        # that HS and XY are mutually exclusive. XY takes priority when available
+        # (native Hue color space; more accurate than HS round-trip).
         modes: set[ColorMode] = set()
-        if has_hs_color:
+        if has_xy_color:
+            modes.add(ColorMode.XY)
+        elif has_hs_color:
             modes.add(ColorMode.HS)
         if has_color_temp:
             modes.add(ColorMode.COLOR_TEMP)
@@ -115,15 +124,16 @@ class Plan44RestLight(LightEntity):
             modes.add(ColorMode.BRIGHTNESS)
         self._attr_supported_color_modes = modes
 
-        if has_hs_color:
-            self._attr_color_mode: ColorMode | None = ColorMode.HS
+        if has_xy_color:
+            self._attr_color_mode: ColorMode | None = ColorMode.XY
+        elif has_hs_color:
+            self._attr_color_mode = ColorMode.HS
         elif has_color_temp:
             self._attr_color_mode = ColorMode.COLOR_TEMP
         else:
             self._attr_color_mode = ColorMode.BRIGHTNESS
 
         if has_color_temp and color_temp_max_mired > 0:
-            # mired → kelvin conversion: 1_000_000 / mired
             # warmest (high mired) = lowest kelvin; coldest (low mired) = highest kelvin
             self._attr_min_color_temp_kelvin = max(
                 1, round(1_000_000 / color_temp_max_mired)
@@ -137,6 +147,7 @@ class Plan44RestLight(LightEntity):
         self._attr_brightness = None
         self._attr_color_temp_kelvin: int | None = None
         self._attr_hs_color: tuple[float, float] | None = None
+        self._attr_xy_color: tuple[float, float] | None = None
 
     # ------------------------------------------------------------------
     # Coordinator subscription
@@ -158,15 +169,23 @@ class Plan44RestLight(LightEntity):
                 self._attr_color_temp_kelvin = round(1_000_000 / ls.color_temp_mired)
             else:
                 self._attr_color_temp_kelvin = None
-            if self._has_hs_color and ls.hue is not None and ls.saturation is not None:
+            if self._has_xy_color and ls.x is not None and ls.y is not None:
+                self._attr_xy_color = (ls.x, ls.y)
+                self._attr_hs_color = None
+            elif (
+                self._has_hs_color and ls.hue is not None and ls.saturation is not None
+            ):
                 self._attr_hs_color = (ls.hue, ls.saturation)
+                self._attr_xy_color = None
             else:
                 self._attr_hs_color = None
+                self._attr_xy_color = None
         else:
             self._attr_is_on = None
             self._attr_brightness = None
             self._attr_color_temp_kelvin = None
             self._attr_hs_color = None
+            self._attr_xy_color = None
         self.async_write_ha_state()
 
     # ------------------------------------------------------------------
@@ -187,15 +206,24 @@ class Plan44RestLight(LightEntity):
             channels["colortemp"] = round(1_000_000 / kwargs[ATTR_COLOR_TEMP_KELVIN], 1)
             self._attr_color_mode = ColorMode.COLOR_TEMP
 
-        if ATTR_HS_COLOR in kwargs and self._has_hs_color:
+        if ATTR_XY_COLOR in kwargs and self._has_xy_color:
+            x, y = kwargs[ATTR_XY_COLOR]
+            channels["x"] = float(x)
+            channels["y"] = float(y)
+            self._attr_color_mode = ColorMode.XY
+
+        elif ATTR_HS_COLOR in kwargs:
             h, s = kwargs[ATTR_HS_COLOR]
-            channels["hue"] = float(h)
-            channels["saturation"] = float(s)
-            self._attr_color_mode = ColorMode.HS
-            if "brightness" not in channels:
-                ls = (self._coordinator.data or {}).get(self._dsuid, {}).get("light")
-                if ls is None or ls.brightness == 0:
-                    channels["brightness"] = 100.0
+            if self._has_xy_color:
+                # XY is the native Hue color space; convert HS → XY
+                x, y = color_hs_to_xy(float(h), float(s))
+                channels["x"] = x
+                channels["y"] = y
+                self._attr_color_mode = ColorMode.XY
+            elif self._has_hs_color:
+                channels["hue"] = float(h)
+                channels["saturation"] = float(s)
+                self._attr_color_mode = ColorMode.HS
 
         if channels:
             await self._coordinator.web_api.async_set_channels(self._dsuid, channels)

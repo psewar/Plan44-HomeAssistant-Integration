@@ -108,6 +108,7 @@ class DiscoveredLightDevice:
     color_temp_min_mired: float
     color_temp_max_mired: float
     has_hs_color: bool
+    has_xy_color: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,8 @@ class LightChannelState:
     color_temp_mired: float | None  # mired; None when unavailable
     hue: float | None  # 0.0–360.0; None for non-colour lights
     saturation: float | None  # 0.0–100.0; None for non-colour lights
+    x: float | None  # CIE x chromaticity; None for non-colour lights
+    y: float | None  # CIE y chromaticity; None for non-colour lights
 
 
 def default_web_url(host: str | None) -> str | None:
@@ -566,6 +569,7 @@ def parse_light_devices(payload: Any) -> list[DiscoveredLightDevice]:
                 color_temp_min_mired=ct_min,
                 color_temp_max_mired=ct_max,
                 has_hs_color="hue" in channel_descs and "saturation" in channel_descs,
+                has_xy_color="x" in channel_descs and "y" in channel_descs,
             )
         )
     return devices
@@ -588,5 +592,7 @@ def parse_light_states(payload: Any, dsuids: set[str]) -> dict[str, LightChannel
             color_temp_mired=_channel_state_value(channel_states, "colortemp"),
             hue=_channel_state_value(channel_states, "hue"),
             saturation=_channel_state_value(channel_states, "saturation"),
+            x=_channel_state_value(channel_states, "x"),
+            y=_channel_state_value(channel_states, "y"),
         )
     return result
