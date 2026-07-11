@@ -97,6 +97,29 @@ class DiscoveredDevice:
     channels: tuple[DiscoveredChannel, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True, slots=True)
+class DiscoveredLightDevice:
+    """A plan44 device that has light output channels (brightness at minimum)."""
+
+    dsuid: str
+    name: str
+    model: str
+    has_color_temp: bool
+    color_temp_min_mired: float
+    color_temp_max_mired: float
+    has_hs_color: bool
+
+
+@dataclass(frozen=True, slots=True)
+class LightChannelState:
+    """Current channel values for a light output device."""
+
+    brightness: float  # 0.0–100.0
+    color_temp_mired: float | None  # mired; None when unavailable
+    hue: float | None  # 0.0–360.0; None for non-colour lights
+    saturation: float | None  # 0.0–100.0; None for non-colour lights
+
+
 def default_web_url(host: str | None) -> str | None:
     """Derive the web API base URL from the connection host (https on 443).
 
@@ -210,6 +233,39 @@ class Plan44WebApi:
         )
         return parse_states(payload, dsuids)
 
+    async def async_list_light_devices(self) -> list[DiscoveredLightDevice]:
+        payload = await self._hass.async_add_executor_job(
+            self._request_sync, _LIGHT_DESCRIPTIONS_QUERY
+        )
+        return parse_light_devices(payload)
+
+    async def async_get_light_states(
+        self, dsuids: set[str]
+    ) -> dict[str, LightChannelState]:
+        payload = await self._hass.async_add_executor_job(
+            self._request_sync, _LIGHT_STATES_QUERY
+        )
+        return parse_light_states(payload, dsuids)
+
+    def _set_channels_sync(self, dsuid: str, channels: dict[str, float]) -> None:
+        """Set one or more channel values on a light device (run in executor)."""
+        self._request_sync(
+            {
+                "method": "setProperty",
+                "dSUID": dsuid,
+                "properties": {
+                    "channelStates": {
+                        ch: {"value": val} for ch, val in channels.items()
+                    }
+                },
+            }
+        )
+
+    async def async_set_channels(self, dsuid: str, channels: dict[str, float]) -> None:
+        await self._hass.async_add_executor_job(
+            self._set_channels_sync, dsuid, channels
+        )
+
     # -- blocking implementation (runs in executor) ------------------------
 
     def _request_sync(self, query: dict[str, Any]) -> Any:
@@ -300,6 +356,44 @@ _STATES_QUERY: dict[str, Any] = {
                         "dSUID": None,
                         "sensorStates": None,
                         "binaryInputStates": None,
+                    }
+                }
+            }
+        }
+    },
+}
+
+
+_LIGHT_DESCRIPTIONS_QUERY: dict[str, Any] = {
+    "method": "getProperty",
+    "dSUID": "",
+    "query": {
+        "x-p44-vdcs": {
+            "*": {
+                "x-p44-devices": {
+                    "*": {
+                        "dSUID": None,
+                        "name": None,
+                        "model": None,
+                        "outputSettings": None,
+                        "channelDescriptions": None,
+                    }
+                }
+            }
+        }
+    },
+}
+
+_LIGHT_STATES_QUERY: dict[str, Any] = {
+    "method": "getProperty",
+    "dSUID": "",
+    "query": {
+        "x-p44-vdcs": {
+            "*": {
+                "x-p44-devices": {
+                    "*": {
+                        "dSUID": None,
+                        "channelStates": None,
                     }
                 }
             }
@@ -410,4 +504,89 @@ def parse_states(
         for key, state in _items(dev.get("binaryInputStates")):
             inputs[key] = state.get("value")
         result[dsuid] = {PLATFORM_SENSOR: sensors, PLATFORM_BINARY_SENSOR: inputs}
+    return result
+
+
+def _iter_light_nodes(payload: Any) -> list[dict[str, Any]]:
+    """Yield device nodes that have a channelDescriptions key."""
+    found: list[dict[str, Any]] = []
+
+    def visit(node: Any, depth: int) -> None:
+        if depth > _MAX_PARSE_DEPTH:
+            return
+        if isinstance(node, dict):
+            if "dSUID" in node and "channelDescriptions" in node:
+                found.append(node)
+            for value in node.values():
+                visit(value, depth + 1)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value, depth + 1)
+
+    visit(payload, 0)
+    return found
+
+
+def _ch_float(
+    channel_descs: dict[str, Any], key: str, attr: str, default: float
+) -> float:
+    ch = channel_descs.get(key)
+    if isinstance(ch, dict):
+        v = ch.get(attr)
+        if isinstance(v, (int, float)):
+            return float(v)
+    return default
+
+
+def _channel_state_value(channel_states: dict[str, Any], key: str) -> float | None:
+    ch = channel_states.get(key)
+    if not isinstance(ch, dict):
+        return None
+    v = ch.get("value")
+    return float(v) if isinstance(v, (int, float)) else None
+
+
+def parse_light_devices(payload: Any) -> list[DiscoveredLightDevice]:
+    devices: list[DiscoveredLightDevice] = []
+    for dev in _iter_light_nodes(payload):
+        channel_descs = dev.get("channelDescriptions")
+        if not isinstance(channel_descs, dict) or "brightness" not in channel_descs:
+            continue
+        if not isinstance(dev.get("outputSettings"), dict):
+            continue
+        has_color_temp = "colortemp" in channel_descs
+        ct_min = _ch_float(channel_descs, "colortemp", "min", 100.0)
+        ct_max = _ch_float(channel_descs, "colortemp", "max", 1000.0)
+        devices.append(
+            DiscoveredLightDevice(
+                dsuid=str(dev["dSUID"]),
+                name=str(dev.get("name") or dev["dSUID"]),
+                model=str(dev.get("model") or ""),
+                has_color_temp=has_color_temp,
+                color_temp_min_mired=ct_min,
+                color_temp_max_mired=ct_max,
+                has_hs_color="hue" in channel_descs and "saturation" in channel_descs,
+            )
+        )
+    return devices
+
+
+def parse_light_states(payload: Any, dsuids: set[str]) -> dict[str, LightChannelState]:
+    result: dict[str, LightChannelState] = {}
+    for dev in _iter_light_nodes(payload):
+        dsuid = str(dev.get("dSUID"))
+        if dsuid not in dsuids:
+            continue
+        channel_states = dev.get("channelStates")
+        if not isinstance(channel_states, dict):
+            continue
+        brightness = _channel_state_value(channel_states, "brightness")
+        if brightness is None:
+            continue
+        result[dsuid] = LightChannelState(
+            brightness=brightness,
+            color_temp_mired=_channel_state_value(channel_states, "colortemp"),
+            hue=_channel_state_value(channel_states, "hue"),
+            saturation=_channel_state_value(channel_states, "saturation"),
+        )
     return result

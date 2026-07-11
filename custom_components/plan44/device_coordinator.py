@@ -1,7 +1,7 @@
 """Polling coordinator for REST-discovered plan44 devices.
 
-Periodically reads sensor/binary-input states for all imported (dSUID-based)
-p44_device subentries from the web vdc JSON API.
+Periodically reads sensor/binary-input states and light channel states for all
+imported (dSUID-based) p44_device subentries from the web vdc JSON API.
 """
 
 from __future__ import annotations
@@ -15,13 +15,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import ATTR_DSUID, SUBENTRY_TYPE_P44_DEVICE
+from .const import ATTR_DSUID, ATTR_PLATFORM, KIND_LIGHT, SUBENTRY_TYPE_P44_DEVICE
 from .web_client import Plan44WebApi, Plan44WebApiError
 
 _LOGGER = logging.getLogger(__name__)
 
-# coordinator.data: {dsuid: {"sensor": {key: value}, "binary_sensor": {key: value}}}
-DeviceStates = dict[str, dict[str, dict[str, Any]]]
+# coordinator.data shape:
+#   {dsuid: {"sensor": {key: value}, "binary_sensor": {key: value}}}  for sensor devices
+#   {dsuid: {"light": LightChannelState}}                              for light devices
+DeviceStates = dict[str, dict[str, Any]]
 
 
 class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
@@ -43,6 +45,10 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         self._entry = entry
         self._web_api = web_api
 
+    @property
+    def web_api(self) -> Plan44WebApi:
+        return self._web_api
+
     def imported_dsuids(self) -> set[str]:
         """Collect dSUIDs from all dSUID-based p44_device subentries."""
         dsuids: set[str] = set()
@@ -54,11 +60,49 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
                 dsuids.add(str(data[ATTR_DSUID]))
         return dsuids
 
+    def imported_sensor_dsuids(self) -> set[str]:
+        """Collect dSUIDs for sensor/binary-sensor (non-light) subentries."""
+        dsuids: set[str] = set()
+        for subentry in self._entry.subentries.values():
+            if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
+                continue
+            data = getattr(subentry, "data", None)
+            if (
+                isinstance(data, Mapping)
+                and data.get(ATTR_DSUID)
+                and data.get(ATTR_PLATFORM) != KIND_LIGHT
+            ):
+                dsuids.add(str(data[ATTR_DSUID]))
+        return dsuids
+
+    def imported_light_dsuids(self) -> set[str]:
+        """Collect dSUIDs for light subentries."""
+        dsuids: set[str] = set()
+        for subentry in self._entry.subentries.values():
+            if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
+                continue
+            data = getattr(subentry, "data", None)
+            if (
+                isinstance(data, Mapping)
+                and data.get(ATTR_DSUID)
+                and data.get(ATTR_PLATFORM) == KIND_LIGHT
+            ):
+                dsuids.add(str(data[ATTR_DSUID]))
+        return dsuids
+
     async def _async_update_data(self) -> DeviceStates:
-        dsuids = self.imported_dsuids()
-        if not dsuids:
+        sensor_dsuids = self.imported_sensor_dsuids()
+        light_dsuids = self.imported_light_dsuids()
+        if not sensor_dsuids and not light_dsuids:
             return {}
+        states: DeviceStates = {}
         try:
-            return await self._web_api.async_get_states(dsuids)
+            if sensor_dsuids:
+                states = await self._web_api.async_get_states(sensor_dsuids)
+            if light_dsuids:
+                light_states = await self._web_api.async_get_light_states(light_dsuids)
+                for dsuid, ls in light_states.items():
+                    states.setdefault(dsuid, {})["light"] = ls
         except Plan44WebApiError as err:
             raise UpdateFailed(str(err)) from err
+        return states

@@ -79,6 +79,12 @@ ATTR_DSUID = "dsuid"
 ATTR_MODEL = "model"
 ATTR_CHANNELS = "channels"  # list of serialized DiscoveredChannel dicts
 
+# p44_device subentry attributes for light (output) devices
+ATTR_HAS_COLOR_TEMP = "has_color_temp"
+ATTR_COLOR_TEMP_MIN_MIRED = "color_temp_min_mired"
+ATTR_COLOR_TEMP_MAX_MIRED = "color_temp_max_mired"
+ATTR_HAS_HS_COLOR = "has_hs_color"
+
 KIND_SWITCH = "switch"
 KIND_LIGHT = "light"
 KIND_SENSOR = "sensor"

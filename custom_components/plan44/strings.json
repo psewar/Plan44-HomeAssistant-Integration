@@ -98,7 +98,7 @@
       "step": {
         "pick_device": {
           "title": "Import a plan44 device",
-          "description": "Pick a device read live from your plan44 bridge. Its channels (sensors and inputs) are imported automatically and polled via the web API.",
+          "description": "Pick a device read live from your plan44 bridge. Its channels (sensors, inputs, or light outputs) are imported automatically and polled via the web API.",
           "data": {
             "dsuid": "Device"
           }

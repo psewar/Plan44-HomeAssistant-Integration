@@ -98,7 +98,7 @@
       "step": {
         "pick_device": {
           "title": "Plan44-Gerät importieren",
-          "description": "Wähle ein Gerät, das live von deiner plan44-Bridge gelesen wurde. Seine Kanäle (Sensoren und Eingänge) werden automatisch importiert und per Web-API abgefragt.",
+          "description": "Wähle ein Gerät, das live von deiner plan44-Bridge gelesen wurde. Seine Kanäle (Sensoren, Eingänge oder Lichtausgänge) werden automatisch importiert und per Web-API abgefragt.",
           "data": {
             "dsuid": "Gerät"
           }

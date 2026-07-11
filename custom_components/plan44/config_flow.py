@@ -13,8 +13,12 @@ from homeassistant.helpers.selector import selector
 
 from .const import (
     ATTR_CHANNELS,
+    ATTR_COLOR_TEMP_MAX_MIRED,
+    ATTR_COLOR_TEMP_MIN_MIRED,
     ATTR_DEVICE_CLASS,
     ATTR_DSUID,
+    ATTR_HAS_COLOR_TEMP,
+    ATTR_HAS_HS_COLOR,
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_P44_INDEX,
@@ -62,6 +66,7 @@ from .device_templates import (
 from .plan44_client import Plan44Client
 from .web_client import (
     DiscoveredDevice,
+    DiscoveredLightDevice,
     Plan44WebApi,
     Plan44WebApiError,
     default_web_url,
@@ -620,7 +625,7 @@ async def _async_schedule_entry_reload(hass: HomeAssistant, entry_id: str) -> No
 
 
 def _serialize_device(device: DiscoveredDevice) -> ConfigDict:
-    """Serialize a REST-discovered device into subentry data."""
+    """Serialize a REST-discovered sensor/binary-sensor device into subentry data."""
     return {
         ATTR_DSUID: device.dsuid,
         ATTR_NAME: device.name,
@@ -639,6 +644,20 @@ def _serialize_device(device: DiscoveredDevice) -> ConfigDict:
     }
 
 
+def _serialize_light_device(device: DiscoveredLightDevice) -> ConfigDict:
+    """Serialize a REST-discovered light device into subentry data."""
+    return {
+        ATTR_DSUID: device.dsuid,
+        ATTR_NAME: device.name,
+        ATTR_MODEL: device.model,
+        ATTR_PLATFORM: KIND_LIGHT,
+        ATTR_HAS_COLOR_TEMP: device.has_color_temp,
+        ATTR_COLOR_TEMP_MIN_MIRED: device.color_temp_min_mired,
+        ATTR_COLOR_TEMP_MAX_MIRED: device.color_temp_max_mired,
+        ATTR_HAS_HS_COLOR: device.has_hs_color,
+    }
+
+
 class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
     """Import a physical plan44 device into HA.
 
@@ -649,6 +668,7 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
 
     _pending: ConfigDict
     _discovered: dict[str, DiscoveredDevice]
+    _discovered_lights: dict[str, DiscoveredLightDevice]
 
     def _get_web_api(self) -> Plan44WebApi | None:
         entry = self._get_entry()
@@ -689,7 +709,16 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
             return await self.async_step_manual()
 
         if user_input is not None:
-            device = getattr(self, "_discovered", {}).get(user_input[ATTR_DSUID])
+            dsuid = user_input[ATTR_DSUID]
+            light = getattr(self, "_discovered_lights", {}).get(dsuid)
+            if light is not None:
+                self.hass.async_create_task(
+                    _async_schedule_entry_reload(self.hass, self._get_entry().entry_id)
+                )
+                return self.async_create_entry(
+                    title=light.name, data=_serialize_light_device(light)
+                )
+            device = getattr(self, "_discovered", {}).get(dsuid)
             if device is not None:
                 self.hass.async_create_task(
                     _async_schedule_entry_reload(self.hass, self._get_entry().entry_id)
@@ -699,25 +728,40 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
                 )
 
         try:
-            devices = await web_api.async_list_devices()
+            devices, light_devices = await asyncio.gather(
+                web_api.async_list_devices(),
+                web_api.async_list_light_devices(),
+            )
         except Plan44WebApiError as err:
             _LOGGER.warning("plan44 web API device list failed: %s", err)
             return await self.async_step_manual(web_error="web_api_unreachable")
-        if not devices:
+        if not devices and not light_devices:
             return await self.async_step_manual(web_error="web_api_no_devices")
 
         self._discovered = {d.dsuid: d for d in devices}
-        options = [
+        self._discovered_lights = {d.dsuid: d for d in light_devices}
+
+        sensor_options = [
             {
                 "value": d.dsuid,
                 "label": f"{d.name} — {d.model}" if d.model else d.name,
             }
             for d in sorted(devices, key=lambda d: d.name.lower())
         ]
+        light_options = [
+            {
+                "value": d.dsuid,
+                "label": (
+                    f"{d.name} — {d.model} (light)" if d.model else f"{d.name} (light)"
+                ),
+            }
+            for d in sorted(light_devices, key=lambda d: d.name.lower())
+        ]
+        options = sensor_options + light_options
         schema = vol.Schema(
             {
                 vol.Required(ATTR_DSUID): selector(
-                    {"select": {"options": options, "mode": "dropdown"}}
+                    {"select": {"options": options, "mode": "dropdown", "sort": True}}
                 )
             }
         )
