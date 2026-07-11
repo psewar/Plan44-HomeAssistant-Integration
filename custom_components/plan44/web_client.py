@@ -113,7 +113,9 @@ def default_web_url(host: str | None) -> str | None:
     return f"https://{host}"
 
 
-def build_ssl_context(pinned_cert: str | None) -> ssl.SSLContext:
+def build_ssl_context(
+    pinned_cert: str | None, verify_ssl: bool = True
+) -> ssl.SSLContext:
     """Build the TLS context for talking to the bridge.
 
     With a pinned certificate we trust *only* that certificate (the bridge's
@@ -121,7 +123,16 @@ def build_ssl_context(pinned_cert: str | None) -> ssl.SSLContext:
     checking is off because self-signed certs rarely match the host/IP and the
     exact-cert pin already binds the connection.  Without a pin (before the
     first fetch, or if the fetch failed) we fall back to no verification.
+
+    When *verify_ssl* is False all certificate checks are skipped entirely;
+    this disables TOFU protection and is intended only as a temporary workaround
+    for CA-chain issues (e.g. while a new certificate is being rolled out).
     """
+    if not verify_ssl:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
     if pinned_cert:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
@@ -172,12 +183,14 @@ class Plan44WebApi:
         user: str,
         password: str,
         pinned_cert: str | None = None,
+        verify_ssl: bool = True,
     ) -> None:
         self._hass = hass
         self._base = base_url.rstrip("/")
         self._user = user
         self._password = password
         self._pinned_cert = pinned_cert
+        self._verify_ssl = verify_ssl
 
     @property
     def base_url(self) -> str:
@@ -200,7 +213,7 @@ class Plan44WebApi:
     # -- blocking implementation (runs in executor) ------------------------
 
     def _request_sync(self, query: dict[str, Any]) -> Any:
-        ctx = build_ssl_context(self._pinned_cert)
+        ctx = build_ssl_context(self._pinned_cert, verify_ssl=self._verify_ssl)
         pwmgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         pwmgr.add_password(None, self._base, self._user, self._password)
         opener = urllib.request.build_opener(
