@@ -44,7 +44,11 @@
           "blocklist_entity_id_prefixes": "Blockierte entity_id-Präfixe (durch Komma getrennt)",
           "web_user": "Web-API-Benutzer",
           "web_password": "Web-API-Passwort",
-          "web_poll_interval": "Abfrageintervall der Geräte (Sekunden)"
+          "web_poll_interval": "Abfrageintervall der Geräte (Sekunden)",
+          "verify_ssl": "SSL-Zertifikat prüfen"
+        },
+        "data_description": {
+          "verify_ssl": "Deaktivieren, um die TLS-Zertifikatsprüfung zu überspringen. Nur als temporäre Übergangslösung verwenden, wenn das Bridge-Zertifikat von einer internen CA ausgestellt wurde."
         }
       }
     }

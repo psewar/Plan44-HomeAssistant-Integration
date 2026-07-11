@@ -44,7 +44,11 @@
           "blocklist_entity_id_prefixes": "Blocked entity_id prefixes (comma-separated)",
           "web_user": "Web API user",
           "web_password": "Web API password",
-          "web_poll_interval": "Device poll interval (seconds)"
+          "web_poll_interval": "Device poll interval (seconds)",
+          "verify_ssl": "Verify SSL certificate"
+        },
+        "data_description": {
+          "verify_ssl": "Disable to skip TLS certificate verification. Use only as a temporary workaround when the bridge certificate is issued by an internal CA."
         }
       }
     }
