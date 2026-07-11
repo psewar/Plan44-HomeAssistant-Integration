@@ -199,8 +199,12 @@ async def _async_setup_web_api(
                 )
 
     web_api = Plan44WebApi(
-        hass, str(url), str(user), str(password),
-        pinned_cert=pinned_cert, verify_ssl=verify_ssl,
+        hass,
+        str(url),
+        str(user),
+        str(password),
+        pinned_cert=pinned_cert,
+        verify_ssl=verify_ssl,
     )
     interval = int(merged.get(CONF_WEB_POLL_INTERVAL, DEFAULT_WEB_POLL_INTERVAL))
     device_coordinator = Plan44DeviceCoordinator(hass, entry, web_api, interval)
