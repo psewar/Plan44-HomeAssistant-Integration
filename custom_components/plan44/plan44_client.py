@@ -15,6 +15,7 @@ from .plan44_core.models import (
 from .plan44_core.protocol import (
     build_init_message,
     build_initvdc_message,
+    build_log_message,
     parse_incoming_message,
     state_to_messages,
 )
@@ -26,6 +27,11 @@ IncomingCallback = Callable[[JsonDict], Awaitable[None]]
 DisconnectCallback = Callable[[], Awaitable[None]]
 
 CONNECT_TIMEOUT_SECONDS = 15
+
+# The plan44 external-device API drops the connection after ~30s without any
+# client->server traffic, which would also kill the push path riding on it. A
+# periodic no-op `log` message keeps it alive; keep this well below ~30s.
+KEEPALIVE_INTERVAL_SECONDS = 15
 
 
 class Plan44Client:
@@ -47,6 +53,7 @@ class Plan44Client:
         self._writer: asyncio.StreamWriter | None = None
         self._write_lock = asyncio.Lock()
         self._reader_task: asyncio.Task[None] | None = None
+        self._keepalive_task: asyncio.Task[None] | None = None
         self._intentional_disconnect = False
 
     @property
@@ -57,6 +64,8 @@ class Plan44Client:
         if self.is_connected:
             return
 
+        await self._cancel_keepalive()
+
         async with asyncio.timeout(CONNECT_TIMEOUT_SECONDS):
             self._reader, self._writer = await asyncio.open_connection(
                 self.host,
@@ -66,6 +75,7 @@ class Plan44Client:
 
         await self.async_send(build_initvdc_message(self.vdc_model_name))
         self._reader_task = asyncio.create_task(self._async_reader_loop())
+        self._keepalive_task = asyncio.create_task(self._async_keepalive_loop())
 
     async def async_ensure_connected(self) -> None:
         if not self.is_connected:
@@ -81,6 +91,8 @@ class Plan44Client:
             except asyncio.CancelledError:
                 pass
             self._reader_task = None
+
+        await self._cancel_keepalive()
 
         writer = self._writer
         if writer is not None and not writer.is_closing():
@@ -185,3 +197,33 @@ class Plan44Client:
             self._writer = None
             if not self._intentional_disconnect:
                 await self._disconnect_callback()
+
+    async def _cancel_keepalive(self) -> None:
+        task = self._keepalive_task
+        self._keepalive_task = None
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    async def _async_keepalive_loop(self) -> None:
+        """Keep the connection (and the push path riding on it) alive.
+
+        The external device API closes the socket after ~30s without any
+        client->server traffic. A periodic no-op `log` message resets that
+        timer. A failed send means the link is already gone; the reader loop
+        handles the resulting disconnect and the coordinator reconnects.
+        """
+        while True:
+            await asyncio.sleep(KEEPALIVE_INTERVAL_SECONDS)
+            if not self.is_connected:
+                return
+            try:
+                await self.async_send(build_log_message("ha keepalive"))
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("plan44 keepalive send failed; awaiting reconnect")
+                return

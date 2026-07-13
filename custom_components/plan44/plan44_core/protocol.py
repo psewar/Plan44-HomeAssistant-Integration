@@ -48,6 +48,16 @@ def build_initvdc_message(model_name: str) -> dict[str, Any]:
     return {"message": "initvdc", "model": model_name}
 
 
+def build_log_message(text: str, level: int = 7) -> dict[str, Any]:
+    """Build a `log` message for the external device API.
+
+    vdcd accepts this at any time and writes *text* to its log at *level*
+    (7=debug, hidden by default; 0=emergency). It targets no device and has
+    no side effect, which makes it a clean connection keepalive.
+    """
+    return {"message": "log", "level": level, "text": text}
+
+
 def build_init_message(spec: SupportsInitSpec | VirtualDeviceSpec) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "message": "init",
