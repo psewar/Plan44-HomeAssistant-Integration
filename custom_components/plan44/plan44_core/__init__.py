@@ -13,6 +13,7 @@ from .protocol import (
     build_channel_message,
     build_init_message,
     build_initvdc_message,
+    build_log_message,
     build_sensor_message,
     parse_incoming_message,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "build_channel_message",
     "build_init_message",
     "build_initvdc_message",
+    "build_log_message",
     "build_sensor_message",
     "parse_incoming_message",
 ]
