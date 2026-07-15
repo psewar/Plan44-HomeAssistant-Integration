@@ -26,7 +26,9 @@ from .const import (
     ATTR_ROOM_HINT,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
+    CONF_PUSH_ENABLED,
     CONF_RECONNECT_INTERVAL,
+    DEFAULT_PUSH_ENABLED,
     DOMAIN,
     FORWARD_COOLDOWN_SECONDS,
     KIND_SENSOR,
@@ -99,6 +101,9 @@ class Plan44Coordinator:
             entry.data[CONF_RECONNECT_INTERVAL],
         )
         self._reconnect_interval = int(cast(int, reconnect_value))
+        self.push_enabled = bool(
+            entry.options.get(CONF_PUSH_ENABLED, DEFAULT_PUSH_ENABLED)
+        )
         blocked_integrations = entry.options.get(
             CONF_BLOCKLIST_INTEGRATIONS,
             entry.data.get(CONF_BLOCKLIST_INTEGRATIONS, ""),
@@ -150,7 +155,8 @@ class Plan44Coordinator:
         self._refresh_exports()
         await self.client.async_connect()
         self._set_connected(True)
-        await self._async_subscribe_push()
+        if self.push_enabled:
+            await self._async_subscribe_push()
         self._install_state_listener()
         if self.auto_republish:
             if self.hass.is_running:
@@ -198,7 +204,8 @@ class Plan44Coordinator:
                 await self.client.async_connect()
                 self._set_connected(True)
                 self.reconnect_count += 1
-                await self._async_subscribe_push()
+                if self.push_enabled:
+                    await self._async_subscribe_push()
                 if self.auto_republish:
                     await self.async_republish_virtual_devices()
                 _LOGGER.info(
