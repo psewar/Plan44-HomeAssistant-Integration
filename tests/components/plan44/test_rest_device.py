@@ -121,7 +121,9 @@ async def test_rest_device_creates_polled_entities(
 
     registry = async_get_entity_registry(hass)
     entities = [
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
     assert len(entities) == 2
     domains = {e.domain for e in entities}
@@ -216,7 +218,9 @@ async def test_rest_device_entities_linked_to_subentry(
     subentry_id = next(iter(entry.subentries))
     registry = async_get_entity_registry(hass)
     ents = [
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
     assert len(ents) == 2  # temperature + low_battery
     assert all(e.config_subentry_id == subentry_id for e in ents)
@@ -327,7 +331,9 @@ async def test_light_entity_created(
 
     registry = async_get_entity_registry(hass)
     entities = [
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
     assert len(entities) == 1
     assert entities[0].domain == "light"
@@ -346,7 +352,9 @@ async def test_light_entity_state_reflects_poll(
 
     registry = async_get_entity_registry(hass)
     light_entry = next(
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     )
     state = hass.states.get(light_entry.entity_id)
     assert state is not None
@@ -373,7 +381,9 @@ async def test_light_entity_unavailable_without_data(
 
     registry = async_get_entity_registry(hass)
     light_entry = next(
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     )
     state = hass.states.get(light_entry.entity_id)
     assert state is not None
@@ -413,7 +423,9 @@ async def test_light_entity_push_update(
 
     registry = async_get_entity_registry(hass)
     light_entry = next(
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     )
     state = hass.states.get(light_entry.entity_id)
     assert state is not None
@@ -451,7 +463,9 @@ async def test_light_entity_push_update_unknown_dsuid_ignored(
 
     registry = async_get_entity_registry(hass)
     light_entry = next(
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     )
     state = hass.states.get(light_entry.entity_id)
     # State should still reflect the original poll data
@@ -473,7 +487,9 @@ async def test_light_entity_linked_to_subentry(
     subentry_id = next(iter(entry.subentries))
     registry = async_get_entity_registry(hass)
     ents = [
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
     assert len(ents) == 1
     assert ents[0].config_subentry_id == subentry_id
@@ -507,7 +523,9 @@ async def test_sensor_entity_push_update(
     sensor_entry = next(
         e
         for e in registry.entities.values()
-        if e.config_entry_id == entry.entry_id and e.domain == "sensor"
+        if e.config_entry_id == entry.entry_id
+        and e.config_subentry_id is not None
+        and e.domain == "sensor"
     )
     state = hass.states.get(sensor_entry.entity_id)
     assert state is not None
@@ -516,7 +534,9 @@ async def test_sensor_entity_push_update(
     binary_entry = next(
         e
         for e in registry.entities.values()
-        if e.config_entry_id == entry.entry_id and e.domain == "binary_sensor"
+        if e.config_entry_id == entry.entry_id
+        and e.config_subentry_id is not None
+        and e.domain == "binary_sensor"
     )
     binary_state = hass.states.get(binary_entry.entity_id)
     assert binary_state is not None
@@ -551,7 +571,9 @@ async def test_sensor_entity_push_update_unknown_dsuid_ignored(
     sensor_entry = next(
         e
         for e in registry.entities.values()
-        if e.config_entry_id == entry.entry_id and e.domain == "sensor"
+        if e.config_entry_id == entry.entry_id
+        and e.config_subentry_id is not None
+        and e.domain == "sensor"
     )
     state = hass.states.get(sensor_entry.entity_id)
     assert state is not None

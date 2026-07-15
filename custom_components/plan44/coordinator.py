@@ -14,6 +14,7 @@ from homeassistant.components.light import ATTR_BRIGHTNESS
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -34,6 +35,7 @@ from .const import (
     ORIGIN_P44,
     REVERSE_COOLDOWN_SECONDS,
     Plan44ConfigEntry,
+    signal_bridge_connection,
 )
 from .device_templates import MSG_INPUT, MSG_SENSOR
 from .plan44_client import Plan44Client
@@ -88,6 +90,9 @@ class Plan44Coordinator:
         self._discovered_indices_by_tag: dict[str, set[int]] = {}
         # Coordinator for dSUID-based device polling — receives push notifications
         self._device_coordinator: Plan44DeviceCoordinator | None = None
+        # Connection state, surfaced through the bridge diagnostic entities.
+        self.connected_since: float | None = None
+        self.reconnect_count = 0
 
         reconnect_value = entry.options.get(
             CONF_RECONNECT_INTERVAL,
@@ -112,6 +117,12 @@ class Plan44Coordinator:
     def set_device_coordinator(self, dc: Plan44DeviceCoordinator) -> None:
         """Attach the device coordinator so push notifications can be routed to it."""
         self._device_coordinator = dc
+
+    @callback
+    def _set_connected(self, connected: bool) -> None:
+        """Record + broadcast the bridge connection state for diagnostic entities."""
+        self.connected_since = time.time() if connected else None
+        async_dispatcher_send(self.hass, signal_bridge_connection(self.entry.entry_id))
 
     async def _async_subscribe_push(self) -> None:
         """Subscribe to plan44 push events for all physical device state changes."""
@@ -138,6 +149,7 @@ class Plan44Coordinator:
     async def async_initialize(self) -> None:
         self._refresh_exports()
         await self.client.async_connect()
+        self._set_connected(True)
         await self._async_subscribe_push()
         self._install_state_listener()
         if self.auto_republish:
@@ -173,6 +185,7 @@ class Plan44Coordinator:
         await self.client.async_disconnect()
 
     async def async_handle_disconnect(self) -> None:
+        self._set_connected(False)
         reconnect_task = self._reconnect_task
         if reconnect_task is not None and not reconnect_task.done():
             return
@@ -183,6 +196,8 @@ class Plan44Coordinator:
         for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
             try:
                 await self.client.async_connect()
+                self._set_connected(True)
+                self.reconnect_count += 1
                 await self._async_subscribe_push()
                 if self.auto_republish:
                     await self.async_republish_virtual_devices()
