@@ -13,9 +13,17 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import ATTR_DSUID, ATTR_PLATFORM, KIND_LIGHT, SUBENTRY_TYPE_P44_DEVICE
+from .const import (
+    ATTR_DSUID,
+    ATTR_PLATFORM,
+    DOMAIN,
+    ISSUE_WEB_API_UNREACHABLE,
+    KIND_LIGHT,
+    SUBENTRY_TYPE_P44_DEVICE,
+)
 from .web_client import (
     PLATFORM_BINARY_SENSOR,
     PLATFORM_SENSOR,
@@ -148,10 +156,27 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         current[dsuid] = existing
         self.async_set_updated_data(current)
 
+    @callback
+    def _set_web_api_issue(self, *, active: bool) -> None:
+        """Create or clear the 'web API unreachable' repair issue."""
+        if active:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_WEB_API_UNREACHABLE,
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_WEB_API_UNREACHABLE,
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_WEB_API_UNREACHABLE)
+
     async def _async_update_data(self) -> DeviceStates:
         sensor_dsuids = self.imported_sensor_dsuids()
         light_dsuids = self.imported_light_dsuids()
         if not sensor_dsuids and not light_dsuids:
+            self._set_web_api_issue(active=False)
             return {}
         states: DeviceStates = {}
         try:
@@ -162,5 +187,7 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
                 for dsuid, ls in light_states.items():
                     states.setdefault(dsuid, {})["light"] = ls
         except Plan44WebApiError as err:
+            self._set_web_api_issue(active=True)
             raise UpdateFailed(str(err)) from err
+        self._set_web_api_issue(active=False)
         return states

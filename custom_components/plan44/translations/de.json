@@ -137,5 +137,11 @@
         "web_api_no_devices": "Die plan44-Web-API hat keine importierbaren Geräte zurückgegeben. Du kannst unten ein Gerät manuell eingeben."
       }
     }
+  },
+  "issues": {
+    "web_api_unreachable": {
+      "title": "plan44 Web-API nicht erreichbar",
+      "description": "Home Assistant erreicht die plan44-Web-API nicht, daher sind die Werte importierter (gepollter) Geräte nicht verfügbar. Prüfe Web-Benutzer und Passwort in den Integrations-Optionen und ob die Bridge über HTTPS erreichbar ist. Nutzt die Bridge ein Zertifikat einer internen CA, deaktiviere \"SSL-Zertifikat verifizieren\" in den Optionen. Dieses Problem verschwindet automatisch, sobald das Polling wieder erfolgreich ist."
+    }
   }
 }
