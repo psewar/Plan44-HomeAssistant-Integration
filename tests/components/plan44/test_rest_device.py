@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -41,10 +42,11 @@ from custom_components.plan44.const import (
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
     DOMAIN,
+    ISSUE_WEB_API_UNREACHABLE,
     KIND_LIGHT,
     SUBENTRY_TYPE_P44_DEVICE,
 )
-from custom_components.plan44.web_client import LightChannelState
+from custom_components.plan44.web_client import LightChannelState, Plan44WebApiError
 
 _DSUID = "C153DD0BD8F15C0EC0731588056C0C7B00"
 _DATA = {
@@ -224,6 +226,34 @@ async def test_rest_device_entities_linked_to_subentry(
     ]
     assert len(ents) == 2  # temperature + low_battery
     assert all(e.config_subentry_id == subentry_id for e in ents)
+
+
+async def test_web_api_unreachable_creates_and_clears_repair_issue(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A failing web-API poll raises a repair issue that clears on recovery."""
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(side_effect=Plan44WebApiError("boom")),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    issue_registry = ir.async_get(hass)
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_WEB_API_UNREACHABLE) is not None
+
+    # A subsequent successful poll clears the issue.
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        device_coordinator = entry.runtime_data.device_coordinator
+        assert device_coordinator is not None
+        await device_coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_WEB_API_UNREACHABLE) is None
 
 
 async def test_rest_device_reconfigure_is_name_only(

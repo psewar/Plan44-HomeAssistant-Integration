@@ -64,6 +64,9 @@ SERVICE_PUSH_ENTITY_STATE = "push_entity_state"
 STORE_VERSION = 2
 STORE_KEY_EXPORTS = "exports"
 
+# Repair issue ids (homeassistant.helpers.issue_registry)
+ISSUE_WEB_API_UNREACHABLE = "web_api_unreachable"
+
 ATTR_ENTRY_ID = "entry_id"
 ATTR_ENTITY_ID = "entity_id"
 ATTR_KIND = "kind"
