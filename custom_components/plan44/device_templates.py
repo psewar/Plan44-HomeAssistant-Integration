@@ -34,6 +34,10 @@ TEMPLATE_CUSTOM = "custom"
 _MEAS = "measurement"
 _TOTAL = "total_increasing"
 
+# Cumulative-meter device classes → total_increasing (usable in the HA Energy
+# dashboard); every other sensor defaults to measurement (long-term statistics).
+_TOTAL_INCREASING_DEVICE_CLASSES = frozenset({"energy", "gas", "water"})
+
 
 @dataclass(frozen=True, slots=True)
 class ChannelTemplate:
@@ -268,7 +272,12 @@ def build_custom_template(
     name the user gave the subentry.
     """
     message = MSG_INPUT if platform == PLATFORM_BINARY_SENSOR else MSG_SENSOR
-    state_class = _MEAS if platform == PLATFORM_SENSOR else None
+    if platform != PLATFORM_SENSOR:
+        state_class = None
+    elif device_class in _TOTAL_INCREASING_DEVICE_CLASSES:
+        state_class = _TOTAL
+    else:
+        state_class = _MEAS
     return DeviceTemplate(
         key=TEMPLATE_CUSTOM,
         label="Single sensor (manual)",
