@@ -3,12 +3,13 @@ from __future__ import annotations
 from typing import cast
 
 from homeassistant.components import system_health
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN, Plan44ConfigEntry
 
 
-async def async_register(
+@callback
+def async_register(
     hass: HomeAssistant,
     register: system_health.SystemHealthRegistration,
 ) -> None:
