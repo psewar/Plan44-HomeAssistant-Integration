@@ -7,9 +7,9 @@ plan44 (P44-DSB / P44-LC) bridge in **both directions**:
   virtual devices.
 - **Import (plan44 → Home Assistant):** bring physical devices registered on the
   bridge (e.g. Hue lights, EnOcean sensors) into HA as `light`, `sensor`, or
-  `binary_sensor` entities.  All entity types receive **push updates** via TCP
-  subscriptions (`channelStates` / `sensorStates` / `binaryInputStates`), with
-  polling as fallback.
+  `binary_sensor` entities.  Imported device states are read by **polling** the
+  bridge web vdc JSON API at a configurable interval (the external device API
+  does not push foreign device state).
 
 ## What it does
 
@@ -36,10 +36,8 @@ integration. A typical setup:
 - pick a physical device from a live dropdown read from the bridge web API
 - channels (units, device classes) are derived automatically from the device's
   own descriptions and grouped as one HA device
-- **light** entities: push via TCP `channelStates` subscription (instant);
-  polling as fallback
-- **sensor / binary\_sensor** entities: push via `sensorStates` /
-  `binaryInputStates` subscriptions (instant); polling as fallback
+- **light**, **sensor** and **binary\_sensor** entities: states are read by
+  polling the bridge web vdc JSON API at the configured interval
 - built-in EnOcean device profiles plus a manual fallback; see
   [Importing plan44 devices](docs/DEVICE_IMPORT.md)
 

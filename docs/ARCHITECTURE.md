@@ -31,14 +31,14 @@ Key modules:
 
 | Module | Role |
 |--------|------|
-| `coordinator.py` | export (HA → P44) + inbound push callback registry + push routing for all dSUID event types |
+| `coordinator.py` | export (HA → P44) + tag-based inbound control-back for exported devices + connection state |
 | `state_mapping.py` | pure HA-state → core-state conversion (export) |
-| `web_client.py` | REST client for the web vdc JSON API (device discovery, poll states, set channels); `parse_push_*` helpers shared with push path |
-| `device_coordinator.py` | `DataUpdateCoordinator` that polls imported device states; `async_apply_push_channel_states` and `async_apply_push_sensor_states` for instant push updates |
+| `web_client.py` | REST client for the web vdc JSON API (device discovery, poll states, set channels) |
+| `device_coordinator.py` | `DataUpdateCoordinator` that polls imported device states from the web vdc JSON API |
 | `device_templates.py` | built-in EnOcean device profiles + custom-channel helper |
 | `inbound.py` | resolves a `p44_device` subentry to (tag, name, channels) |
-| `light.py` | push-backed light entity (`Plan44RestLight`); push via coordinator, poll via `device_coordinator` |
-| `sensor.py` / `binary_sensor.py` | poll-backed (REST) and push-backed (tag-based) entities |
+| `light.py` | imported light entity (`Plan44RestLight`); state polled via `device_coordinator` |
+| `sensor.py` / `binary_sensor.py` | poll-backed (REST, imported devices) and tag-based inbound (exported/manual) entities |
 
 ## Two data paths
 
@@ -57,41 +57,32 @@ Device discovery and first-time setup use the bridge's **web vdc JSON API**
    specs from `channelDescriptions` / `sensorDescriptions` /
    `binaryInputDescriptions`.
 
-#### Light output devices — push path (primary)
+#### Imported device states — polling
 
-After the TCP connection is established, `coordinator._async_subscribe_push()`
-sends `{"message": "subscribe", "events": ["channelStates"]}` to the bridge.
-When any output device changes state, the bridge sends:
+Imported (dSUID-based) devices are **polled**: `device_coordinator` reads their
+state from the web vdc JSON API at the configured interval.
 
-```json
-{"message": "channelStates", "dSUID": "...", "channelStates": {"brightness": {"value": 80.0}, ...}}
-```
+- Light output devices: `web_client.async_get_light_states()` returns the current
+  channel values.
+- Sensor / binary_sensor devices: `web_client.async_get_states()` returns the
+  current sensor values and binary-input states.
 
-`coordinator.async_handle_plan44_message()` intercepts dSUID-based messages and
-calls `device_coordinator.async_apply_push_channel_states()`, which parses the
-payload via `web_client.parse_push_light_channel_states()`, updates
-`coordinator.data` in-place, and immediately fires all registered entity
-listeners — no HTTP round-trip.
+The external device API (port 8999) does **not** push foreign device state: the
+bridge routes those events to the digitalSTROM vdSM, not to the external device
+API. An earlier `subscribe`-based push path was removed in v0.7.8 after live
+testing on the bridge confirmed the subscription is rejected
+(`no device tagged '' found`) and no `channelStates` / `sensorStates` /
+`binaryInputStates` events are delivered. Imported devices are therefore
+poll-only, and the poll interval bounds the worst-case update latency.
 
-`device_coordinator` continues polling `web_client.async_get_light_states()` at
-the configured interval as a fallback for robustness.
+#### Tag-based inbound — exported and manual devices
 
-#### Sensor / binary_sensor devices — push path (primary)
-
-`coordinator._async_subscribe_push()` also subscribes to `sensorStates` and
-`binaryInputStates` events.  When the bridge sends a notification for a known
-imported sensor device, `async_handle_plan44_message()` calls
-`device_coordinator.async_apply_push_sensor_states()`, which merges the pushed
-values into the per-device state dict via `web_client.parse_push_sensor_states()`
-and immediately fires all registered entity listeners.
-
-`device_coordinator` continues polling `web_client.async_get_states()` at the
-configured interval as a fallback — for robustness and for devices with slow
-natural update intervals.
-
-A separate, push-based inbound path (`coordinator.dispatch_inbound_channel`
-keyed by `(message, tag, index)`) exists for the manual/tag-based subentry case
-where the user registers a physical device as a virtual device tag.
+The tag-based inbound path (`coordinator.dispatch_inbound_channel` keyed by
+`(message, tag, index)`) handles control-back for devices HA registers on the
+bridge over the external device API — exported entities and manual/tag-based
+subentries. For those the bridge sends `channel` / `sensor` / `input` messages
+addressed to the device's tag. (Physical devices imported via the web-API picker
+do not use this path — see [DEVICE_IMPORT.md](DEVICE_IMPORT.md).)
 
 ## Verified mappings
 

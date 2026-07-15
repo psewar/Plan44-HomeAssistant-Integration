@@ -11,40 +11,29 @@ smoke/contact input.
 
 ## How values flow
 
+Imported device states are read by **polling** the bridge web vdc JSON API at
+the configured interval (default 30 s; see [Configuration](CONFIGURATION.md)).
+
+The plan44 external device API (port 8999) is used to *export* HA entities to the
+bridge and to receive control-back for those exported entities. It does **not**
+deliver state changes for foreign (imported) devices: those events are routed by
+the bridge to the digitalSTROM vdSM, not to the external device API. Imported
+devices are therefore polled, not pushed.
+
 ### Light output devices (Hue, dimmable actuators)
 
-Imported light entities receive **push updates** via the plan44 TCP connection
-(port 8999).  After connecting, the integration subscribes to `channelStates`
-events from the bridge.  When a light changes state — whether from HA, the Hue
-app, a physical dimmer, or a plan44 scene — the bridge sends a `channelStates`
-notification and HA reflects the new state immediately.
-
-Polling over the web vdc JSON API continues at the configured interval as a
-fallback.  If the bridge firmware does not support the subscription (a one-time
-`WARNING` is logged), the integration silently falls back to poll-only.
+When a light changes state — whether from HA, the Hue app, a physical dimmer, or
+a plan44 scene — the new channel value is reflected in HA on the next poll of the
+web vdc JSON API.
 
 ### Sensor / binary_sensor devices (EnOcean, etc.)
 
-After connecting, the integration also subscribes to `sensorStates` and
-`binaryInputStates` push events.  When the plan44 bridge forwards a sensor
-value change or binary input transition, the entity state is updated
-immediately — no HTTP round-trip.
-
-```json
-{"message": "subscribe", "events": ["channelStates", "sensorStates", "binaryInputStates"]}
-```
-
-A typical push notification for a sensor device looks like:
-
-```json
-{"message": "sensorStates", "dSUID": "...", "sensorStates": {"temperature": {"value": 21.5}},
- "binaryInputStates": {"low_battery": {"value": false}}}
-```
-
-Polling over the web vdc JSON API continues at the configured interval as
-fallback — useful for devices with slow natural update intervals (e.g. an
-EnOcean temperature sensor that reports every 5 min) or if the bridge
-firmware does not emit push events for a particular device type.
+Sensor values and binary-input transitions are likewise read on each poll. A
+fast transition between two polls (e.g. a door contact that opens and closes
+within the interval) can therefore be missed; the poll interval bounds the
+worst-case update latency. For devices with slow natural update intervals (e.g.
+an EnOcean temperature sensor that reports every few minutes) polling is a good
+fit.
 
 ## 1. Configure the web API (once)
 
