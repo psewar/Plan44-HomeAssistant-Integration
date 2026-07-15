@@ -45,12 +45,10 @@
           "web_user": "Web API user",
           "web_password": "Web API password",
           "web_poll_interval": "Device poll interval (seconds)",
-          "verify_ssl": "Verify SSL certificate",
-          "push_enabled": "Enable push updates for imported devices"
+          "verify_ssl": "Verify SSL certificate"
         },
         "data_description": {
-          "verify_ssl": "Disable to skip TLS certificate verification. Use only as a temporary workaround when the bridge certificate is issued by an internal CA.",
-          "push_enabled": "When on, imported device states are pushed live over the bridge connection, with polling as a fallback. Turn off to poll only."
+          "verify_ssl": "Disable to skip TLS certificate verification. Use only as a temporary workaround when the bridge certificate is issued by an internal CA."
         }
       }
     }

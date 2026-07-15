@@ -45,12 +45,10 @@
           "web_user": "Web-API-Benutzer",
           "web_password": "Web-API-Passwort",
           "web_poll_interval": "Abfrageintervall der Geräte (Sekunden)",
-          "verify_ssl": "SSL-Zertifikat prüfen",
-          "push_enabled": "Push-Updates für importierte Geräte aktivieren"
+          "verify_ssl": "SSL-Zertifikat prüfen"
         },
         "data_description": {
-          "verify_ssl": "Deaktivieren, um die TLS-Zertifikatsprüfung zu überspringen. Nur als temporäre Übergangslösung verwenden, wenn das Bridge-Zertifikat von einer internen CA ausgestellt wurde.",
-          "push_enabled": "Wenn aktiv, werden Zustände importierter Geräte live über die Bridge-Verbindung gepusht, mit Polling als Fallback. Ausschalten, um nur zu pollen."
+          "verify_ssl": "Deaktivieren, um die TLS-Zertifikatsprüfung zu überspringen. Nur als temporäre Übergangslösung verwenden, wenn das Bridge-Zertifikat von einer internen CA ausgestellt wurde."
         }
       }
     }

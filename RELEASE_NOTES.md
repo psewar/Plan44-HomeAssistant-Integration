@@ -1,5 +1,33 @@
 # Release notes
 
+## 0.7.8 — 2026-07-15
+
+### Removed the non-functional imported-device push path
+
+Live testing against the bridge showed that the external device API (port 8999)
+does **not** deliver push events for imported (foreign) devices: the `subscribe`
+message is rejected (`no device tagged '' found`) and no `channelStates` /
+`sensorStates` / `binaryInputStates` notifications are ever sent. Those device
+events are routed by the bridge to the digitalSTROM vdSM, not to the external
+device API.
+
+The subscribe/apply code path was therefore dead. This release removes it
+entirely — `_async_subscribe_push()`, the dSUID push routing in
+`async_handle_plan44_message()`, the `async_apply_push_*` coordinator methods,
+the `parse_push_sensor_states` helper, and the `push_enabled` option toggle —
+together with the tests that covered it. The documentation is corrected
+accordingly: **imported devices are polled** from the web vdc JSON API at the
+configured interval.
+
+This corrects the 0.7.5 note below, which claimed sensor/binary\_sensor entities
+update via push. They do not; they are polled.
+
+Export (HA → plan44) and control-back for exported / manual tag-based devices are
+unaffected and continue to use the external device API as before, so
+`iot_class: local_push` still reflects that push-based control path.
+
+---
+
 ## 0.7.5 — 2026-07-11
 
 ### Push updates extended to sensor and binary\_sensor entities

@@ -32,7 +32,6 @@ from .const import (
     CONF_BLOCKLIST_INTEGRATIONS,
     CONF_HOST,
     CONF_PORT,
-    CONF_PUSH_ENABLED,
     CONF_RECONNECT_INTERVAL,
     CONF_REVERSE_ENABLED,
     CONF_VDC_MODEL_NAME,
@@ -45,7 +44,6 @@ from .const import (
     DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
     DEFAULT_BLOCKLIST_INTEGRATIONS,
     DEFAULT_PORT,
-    DEFAULT_PUSH_ENABLED,
     DEFAULT_RECONNECT_INTERVAL,
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
@@ -148,10 +146,6 @@ def _options_schema(
             vol.Required(
                 CONF_REVERSE_ENABLED,
                 default=current.get(CONF_REVERSE_ENABLED, DEFAULT_REVERSE_ENABLED),
-            ): bool,
-            vol.Required(
-                CONF_PUSH_ENABLED,
-                default=current.get(CONF_PUSH_ENABLED, DEFAULT_PUSH_ENABLED),
             ): bool,
             vol.Required(
                 CONF_RECONNECT_INTERVAL,
