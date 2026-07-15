@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .bridge_entities import Plan44BridgeEntity
 from .const import (
     ATTR_CHANNELS,
     ATTR_DSUID,
@@ -46,6 +47,7 @@ async def async_setup_entry(
         _build_rest_inputs,
         _build_push_inputs,
     )
+    async_add_entities([Plan44BridgeConnectivity(entry)])
 
 
 def _build_rest_inputs(
@@ -201,3 +203,18 @@ class Plan44InboundBinarySensorEntity(BinarySensorEntity):
     @cached_property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return {"p44_tag": self._tag, "p44_index": self._channel.index}
+
+
+class Plan44BridgeConnectivity(Plan44BridgeEntity, BinarySensorEntity):
+    """Whether the bridge's external-device connection is currently up."""
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(self, entry: Plan44ConfigEntry) -> None:
+        super().__init__(entry)
+        self._attr_name = "Connection"
+        self._attr_unique_id = f"{entry.entry_id}_bridge_connection"
+
+    @callback
+    def _update_from_coordinator(self) -> None:
+        self._attr_is_on = self._entry.runtime_data.client.is_connected

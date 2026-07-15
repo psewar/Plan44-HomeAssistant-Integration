@@ -73,7 +73,9 @@ def _add_device_subentry(
 def _entities_for(hass: HomeAssistant, entry: MockConfigEntry) -> list[Any]:
     registry = async_get_entity_registry(hass)
     return [
-        e for e in registry.entities.values() if e.config_entry_id == entry.entry_id
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
 
 

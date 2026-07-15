@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from decimal import Decimal
 from functools import cached_property
 from typing import Any
@@ -15,6 +16,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .bridge_entities import Plan44BridgeEntity
 from .const import (
     ATTR_CHANNELS,
     ATTR_DSUID,
@@ -51,6 +53,9 @@ async def async_setup_entry(
         async_add_entities,
         _build_rest_sensors,
         _build_push_sensors,
+    )
+    async_add_entities(
+        [Plan44BridgeConnectedSince(entry), Plan44BridgeReconnects(entry)]
     )
 
 
@@ -219,3 +224,34 @@ class Plan44InboundSensorEntity(SensorEntity):
     @cached_property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return {"p44_tag": self._tag, "p44_index": self._channel.index}
+
+
+class Plan44BridgeConnectedSince(Plan44BridgeEntity, SensorEntity):
+    """Timestamp of the current bridge connection (None while disconnected)."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, entry: Plan44ConfigEntry) -> None:
+        super().__init__(entry)
+        self._attr_name = "Connected since"
+        self._attr_unique_id = f"{entry.entry_id}_bridge_connected_since"
+
+    @callback
+    def _update_from_coordinator(self) -> None:
+        ts = self._coordinator.connected_since
+        self._attr_native_value = (
+            datetime.fromtimestamp(ts, tz=UTC) if ts is not None else None
+        )
+
+
+class Plan44BridgeReconnects(Plan44BridgeEntity, SensorEntity):
+    """Number of successful reconnects since Home Assistant started."""
+
+    def __init__(self, entry: Plan44ConfigEntry) -> None:
+        super().__init__(entry)
+        self._attr_name = "Reconnects"
+        self._attr_unique_id = f"{entry.entry_id}_bridge_reconnects"
+
+    @callback
+    def _update_from_coordinator(self) -> None:
+        self._attr_native_value = self._coordinator.reconnect_count

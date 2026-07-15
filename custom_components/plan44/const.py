@@ -14,6 +14,12 @@ if TYPE_CHECKING:
 
 DOMAIN = "plan44"
 
+
+def signal_bridge_connection(entry_id: str) -> str:
+    """Dispatcher signal fired when the bridge connection state changes."""
+    return f"{DOMAIN}_bridge_connection_{entry_id}"
+
+
 CONF_HOST = "host"
 CONF_PORT = "port"
 CONF_VDC_MODEL_NAME = "vdc_model_name"
