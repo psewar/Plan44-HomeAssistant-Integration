@@ -99,6 +99,24 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         return dsuids
 
     @callback
+    def apply_push_update(self, dsuid: str, group: str, key: str, value: Any) -> None:
+        """Merge a real-time bridge-API push into the coordinator data.
+
+        Reuses the exact structure the polled entities read
+        (``data[dsuid][group][key]``) and notifies listeners, so imported
+        entities update instantly.  Only affects devices we actually import.
+        """
+        if dsuid not in self.imported_dsuids():
+            return
+        data: DeviceStates = {k: dict(v) for k, v in (self.data or {}).items()}
+        device = dict(data.get(dsuid) or {})
+        channels = dict(device.get(group) or {})
+        channels[key] = value
+        device[group] = channels
+        data[dsuid] = device
+        self.async_set_updated_data(data)
+
+    @callback
     def _set_web_api_issue(self, *, active: bool) -> None:
         """Create or clear the 'web API unreachable' repair issue."""
         if active:
