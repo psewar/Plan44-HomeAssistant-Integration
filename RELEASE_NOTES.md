@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.8.2 — 2026-08-06
+
+- **Keep the real-time bridge connection alive across a firewall / port-forward.**
+  The bridge-API stream is mostly idle between value changes, and an idle SSH
+  session through a NAT/proxy gets dropped (~30 s) — the client would connect,
+  lose the connection, and slowly back off. Added an SSH keepalive (every 15 s)
+  so the tunnel stays up, and the reconnect backoff now resets after any real
+  session so a drop retries in ~5 s instead of up to 120 s.
+
 ## 0.8.1 — 2026-08-06
 
 - **Real-time bridge API: separate optional "SSH host" field.** The SSH tunnel
