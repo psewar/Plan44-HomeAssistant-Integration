@@ -23,6 +23,7 @@ from .const import (
     CONF_PORT,
     CONF_REALTIME_ENABLED,
     CONF_REVERSE_ENABLED,
+    CONF_SSH_HOST,
     CONF_SSH_PORT,
     CONF_SSH_PRIVATE_KEY,
     CONF_SSH_USER,
@@ -259,7 +260,7 @@ async def _async_setup_bridge_client(
 
     client = Plan44BridgeClient(
         hass,
-        ssh_host=str(merged.get(CONF_HOST)),
+        ssh_host=str(merged.get(CONF_SSH_HOST) or merged.get(CONF_HOST)),
         ssh_port=int(merged.get(CONF_SSH_PORT, DEFAULT_SSH_PORT)),
         ssh_user=str(ssh_user),
         ssh_private_key=str(ssh_key),

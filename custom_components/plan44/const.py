@@ -48,6 +48,10 @@ CONF_VERIFY_SSL = "verify_ssl"
 # channel of "bridged" devices instantly, incl. raw sensors (e.g. acceleration)
 # that Matter cannot represent. Opt-in; the REST poll stays as fallback.
 CONF_REALTIME_ENABLED = "realtime_enabled"
+# SSH host for the tunnel. Optional — defaults to the connection host (CONF_HOST).
+# Set it when SSH must reach the bridge at a different address than the web/TCP
+# API (e.g. the LAN IP, when the public hostname's port 22 routes elsewhere).
+CONF_SSH_HOST = "ssh_host"
 CONF_SSH_USER = "ssh_user"
 CONF_SSH_PORT = "ssh_port"
 CONF_SSH_PRIVATE_KEY = "ssh_private_key"
