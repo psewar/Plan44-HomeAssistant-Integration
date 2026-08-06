@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.8.1 — 2026-08-06
+
+- **Real-time bridge API: separate optional "SSH host" field.** The SSH tunnel
+  defaulted to the connection host, but on some setups that hostname's port 22
+  routes elsewhere (firewall / reverse tunnel) while the web/TCP API still works
+  — causing `Permission denied`. You can now set a distinct SSH host (e.g. the
+  bridge's LAN IP); leave it empty to keep using the connection host.
+
 ## 0.8.0 — 2026-08-06
 
 ### Optional real-time updates for imported devices via the bridge API (SSH)
