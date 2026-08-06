@@ -46,11 +46,16 @@
           "web_password": "Web-API-Passwort",
           "web_poll_interval": "Abfrageintervall der Geräte (Sekunden)",
           "verify_ssl": "SSL-Zertifikat prüfen",
-          "push_enabled": "Push-Updates für importierte Geräte aktivieren"
+          "realtime_enabled": "Echtzeit-Updates über die Bridge-API (SSH)",
+          "ssh_user": "SSH-Benutzer (Bridge)",
+          "ssh_port": "SSH-Port",
+          "ssh_private_key": "SSH-Private-Key (Bridge)",
+          "bridge_api_port": "Bridge-API-Port"
         },
         "data_description": {
           "verify_ssl": "Deaktivieren, um die TLS-Zertifikatsprüfung zu überspringen. Nur als temporäre Übergangslösung verwenden, wenn das Bridge-Zertifikat von einer internen CA ausgestellt wurde.",
-          "push_enabled": "Wenn aktiv, werden Zustände importierter Geräte live über die Bridge-Verbindung gepusht, mit Polling als Fallback. Ausschalten, um nur zu pollen."
+          "realtime_enabled": "Schiebt Werte importierter Geräte (inkl. Rohsensoren wie Beschleunigung) in Echtzeit per SSH-Tunnel zur Bridge-API. Benötigt den SSH-Benutzer + Private-Key unten; das Polling bleibt als Fallback aktiv.",
+          "ssh_private_key": "Private Key (PEM) eines dedizierten, nur-Forward-fähigen SSH-Keys auf der Bridge. Den kompletten Key inkl. BEGIN/END-Zeilen einfügen."
         }
       }
     }

@@ -612,25 +612,3 @@ def parse_push_light_channel_states(
         x=_channel_state_value(channel_states, "x"),
         y=_channel_state_value(channel_states, "y"),
     )
-
-
-def parse_push_sensor_states(
-    msg: dict[str, Any],
-) -> dict[str, dict[str, Any]] | None:
-    """Parse sensorStates/binaryInputStates from a TCP push notification.
-
-    Returns the same per-device structure as ``parse_states``:
-    ``{PLATFORM_SENSOR: {key: value}, PLATFORM_BINARY_SENSOR: {key: value}}``.
-    Returns ``None`` when neither payload key is present.
-    """
-    sensor_states = msg.get("sensorStates")
-    binary_input_states = msg.get("binaryInputStates")
-    if sensor_states is None and binary_input_states is None:
-        return None
-    sensors: dict[str, Any] = {
-        key: state.get("value") for key, state in _items(sensor_states)
-    }
-    inputs: dict[str, Any] = {
-        key: state.get("value") for key, state in _items(binary_input_states)
-    }
-    return {PLATFORM_SENSOR: sensors, PLATFORM_BINARY_SENSOR: inputs}

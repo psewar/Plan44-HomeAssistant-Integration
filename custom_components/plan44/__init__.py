@@ -4,10 +4,12 @@ import logging
 from typing import Any, cast
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers.typing import ConfigType
 
+from .bridge_client import Plan44BridgeClient
+from .bridge_protocol import BridgeUpdate
 from .const import (
     ATTR_ALLOW_REVERSE,
     ATTR_ENTITY_ID,
@@ -16,15 +18,22 @@ from .const import (
     ATTR_NAME,
     ATTR_ROOM_HINT,
     CONF_AUTO_REPUBLISH,
+    CONF_BRIDGE_API_PORT,
     CONF_HOST,
     CONF_PORT,
+    CONF_REALTIME_ENABLED,
     CONF_REVERSE_ENABLED,
+    CONF_SSH_PORT,
+    CONF_SSH_PRIVATE_KEY,
+    CONF_SSH_USER,
     CONF_VDC_MODEL_NAME,
     CONF_VERIFY_SSL,
     CONF_WEB_CERT,
     CONF_WEB_PASSWORD,
     CONF_WEB_POLL_INTERVAL,
     CONF_WEB_USER,
+    DEFAULT_BRIDGE_API_PORT,
+    DEFAULT_SSH_PORT,
     DEFAULT_VERIFY_SSL,
     DEFAULT_WEB_POLL_INTERVAL,
     DOMAIN,
@@ -218,6 +227,49 @@ async def _async_setup_web_api(
     return web_api, device_coordinator
 
 
+async def _async_setup_bridge_client(
+    hass: HomeAssistant,
+    entry: Plan44ConfigEntry,
+    device_coordinator: Plan44DeviceCoordinator | None,
+) -> Plan44BridgeClient | None:
+    """Start the real-time bridge-API client (SSH tunnel) if configured.
+
+    Pushes flow into the device coordinator, so imported entities update
+    instantly.  Opt-in; the REST poll remains as fallback.
+    """
+    if device_coordinator is None:
+        return None
+    merged = {**entry.data, **entry.options}
+    if not merged.get(CONF_REALTIME_ENABLED):
+        return None
+    ssh_user = merged.get(CONF_SSH_USER)
+    ssh_key = merged.get(CONF_SSH_PRIVATE_KEY)
+    if not (ssh_user and ssh_key):
+        _LOGGER.warning(
+            "plan44 real-time mode is enabled but the SSH user/key is missing; "
+            "falling back to polling"
+        )
+        return None
+
+    @callback
+    def _on_update(update: BridgeUpdate) -> None:
+        device_coordinator.apply_push_update(
+            update.dsuid, update.group, update.key, update.value
+        )
+
+    client = Plan44BridgeClient(
+        hass,
+        ssh_host=str(merged.get(CONF_HOST)),
+        ssh_port=int(merged.get(CONF_SSH_PORT, DEFAULT_SSH_PORT)),
+        ssh_user=str(ssh_user),
+        ssh_private_key=str(ssh_key),
+        bridge_port=int(merged.get(CONF_BRIDGE_API_PORT, DEFAULT_BRIDGE_API_PORT)),
+        on_update=_on_update,
+    )
+    await client.async_start()
+    return client
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
     store = Plan44Store(hass, entry)
     await store.async_load()
@@ -270,12 +322,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
     if device_coordinator is not None:
         coordinator.set_device_coordinator(device_coordinator)
 
+    bridge_client = await _async_setup_bridge_client(hass, entry, device_coordinator)
+
     entry.runtime_data = Plan44RuntimeData(
         client=client,
         coordinator=coordinator,
         store=store,
         web_api=web_api,
         device_coordinator=device_coordinator,
+        bridge_client=bridge_client,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -289,5 +344,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
 
 async def async_unload_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    await entry.runtime_data.coordinator.async_shutdown()
+    runtime = entry.runtime_data
+    if runtime.bridge_client is not None:
+        await runtime.bridge_client.async_stop()
+    await runtime.coordinator.async_shutdown()
     return True

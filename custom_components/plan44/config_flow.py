@@ -30,11 +30,15 @@ from .const import (
     CONF_AUTO_REPUBLISH,
     CONF_BLOCKLIST_ENTITY_ID_PREFIXES,
     CONF_BLOCKLIST_INTEGRATIONS,
+    CONF_BRIDGE_API_PORT,
     CONF_HOST,
     CONF_PORT,
-    CONF_PUSH_ENABLED,
+    CONF_REALTIME_ENABLED,
     CONF_RECONNECT_INTERVAL,
     CONF_REVERSE_ENABLED,
+    CONF_SSH_PORT,
+    CONF_SSH_PRIVATE_KEY,
+    CONF_SSH_USER,
     CONF_VDC_MODEL_NAME,
     CONF_VERIFY_SSL,
     CONF_WEB_CERT,
@@ -44,10 +48,12 @@ from .const import (
     DEFAULT_AUTO_REPUBLISH,
     DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES,
     DEFAULT_BLOCKLIST_INTEGRATIONS,
+    DEFAULT_BRIDGE_API_PORT,
     DEFAULT_PORT,
-    DEFAULT_PUSH_ENABLED,
+    DEFAULT_REALTIME_ENABLED,
     DEFAULT_RECONNECT_INTERVAL,
     DEFAULT_REVERSE_ENABLED,
+    DEFAULT_SSH_PORT,
     DEFAULT_VDC_MODEL_NAME,
     DEFAULT_VERIFY_SSL,
     DEFAULT_WEB_POLL_INTERVAL,
@@ -150,10 +156,6 @@ def _options_schema(
                 default=current.get(CONF_REVERSE_ENABLED, DEFAULT_REVERSE_ENABLED),
             ): bool,
             vol.Required(
-                CONF_PUSH_ENABLED,
-                default=current.get(CONF_PUSH_ENABLED, DEFAULT_PUSH_ENABLED),
-            ): bool,
-            vol.Required(
                 CONF_RECONNECT_INTERVAL,
                 default=current.get(
                     CONF_RECONNECT_INTERVAL,
@@ -187,6 +189,26 @@ def _options_schema(
                 CONF_VERIFY_SSL,
                 default=current.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
             ): bool,
+            vol.Optional(
+                CONF_REALTIME_ENABLED,
+                default=current.get(CONF_REALTIME_ENABLED, DEFAULT_REALTIME_ENABLED),
+            ): bool,
+            vol.Optional(
+                CONF_SSH_USER,
+                default=current.get(CONF_SSH_USER, ""),
+            ): str,
+            vol.Optional(
+                CONF_SSH_PORT,
+                default=current.get(CONF_SSH_PORT, DEFAULT_SSH_PORT),
+            ): int,
+            vol.Optional(
+                CONF_SSH_PRIVATE_KEY,
+                default=current.get(CONF_SSH_PRIVATE_KEY, ""),
+            ): selector({"text": {"multiline": True}}),
+            vol.Optional(
+                CONF_BRIDGE_API_PORT,
+                default=current.get(CONF_BRIDGE_API_PORT, DEFAULT_BRIDGE_API_PORT),
+            ): int,
         }
     )
 

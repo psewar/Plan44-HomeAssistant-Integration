@@ -19,7 +19,6 @@ from custom_components.plan44.web_client import (
     parse_light_devices,
     parse_light_states,
     parse_push_light_channel_states,
-    parse_push_sensor_states,
     parse_states,
 )
 
@@ -440,51 +439,6 @@ def test_parse_push_light_channel_states_brightness_only() -> None:
     assert ls.color_temp_mired is None
     assert ls.hue is None
     assert ls.x is None
-
-
-# parse_push_sensor_states
-# ---------------------------------------------------------------------------
-
-
-def test_parse_push_sensor_states_full() -> None:
-    msg = {
-        "message": "sensorStates",
-        "dSUID": "ABC123",
-        "sensorStates": {"temperature": {"value": 21.5}, "humidity": {"value": 65.0}},
-        "binaryInputStates": {"low_battery": {"value": False}},
-    }
-    result = parse_push_sensor_states(msg)
-    assert result is not None
-    assert result[PLATFORM_SENSOR] == {"temperature": 21.5, "humidity": 65.0}
-    assert result[PLATFORM_BINARY_SENSOR] == {"low_battery": False}
-
-
-def test_parse_push_sensor_states_sensor_only() -> None:
-    msg = {
-        "message": "sensorStates",
-        "dSUID": "ABC123",
-        "sensorStates": {"temperature": {"value": 18.0}},
-    }
-    result = parse_push_sensor_states(msg)
-    assert result is not None
-    assert result[PLATFORM_SENSOR] == {"temperature": 18.0}
-    assert result[PLATFORM_BINARY_SENSOR] == {}
-
-
-def test_parse_push_sensor_states_binary_input_only() -> None:
-    msg = {
-        "message": "binaryInputStates",
-        "dSUID": "ABC123",
-        "binaryInputStates": {"low_battery": {"value": True}},
-    }
-    result = parse_push_sensor_states(msg)
-    assert result is not None
-    assert result[PLATFORM_SENSOR] == {}
-    assert result[PLATFORM_BINARY_SENSOR] == {"low_battery": True}
-
-
-def test_parse_push_sensor_states_no_payload_returns_none() -> None:
-    assert parse_push_sensor_states({"message": "channelStates", "dSUID": "X"}) is None
 
 
 def test_parse_devices_survives_pathological_nesting() -> None:

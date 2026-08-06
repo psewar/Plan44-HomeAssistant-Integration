@@ -1,5 +1,57 @@
 # Release notes
 
+## 0.8.0 — 2026-08-06
+
+### Optional real-time updates for imported devices via the bridge API (SSH)
+
+Imported (dSUID) devices can now update **in real time** instead of only on the
+poll interval, by reading the bridge's *bridge API* (the same JSON API p44mbrd /
+Matter uses) over an SSH tunnel. Unlike Matter, this carries the **raw** device
+channels — including ones Matter cannot represent, e.g. acceleration X/Y/Z.
+
+Enable it under the integration options — *"Real-time updates via bridge API
+(SSH)"* — and supply an SSH user plus a dedicated, forward-only private key for
+the bridge. The client opens an SSH `direct-tcpip` channel to the bridge API on
+`127.0.0.1:4444` and feeds every `pushNotification` into the existing imported
+entities; the REST poll stays active as a fallback / initial backfill. This is
+fully opt-in — nothing changes unless you enable it.
+
+Notes:
+- Only devices flagged for bridging on the bridge (its *"Bridge to Matter"*
+  per-device option) are pushed.
+- The bridge API stays localhost-only; the SSH key only needs port-forwarding
+  (install it with `no-pty` + a forced command), so it can't open a shell.
+- Adds `asyncssh` as a dependency (pinned `<2.20` for compatibility with Home
+  Assistant's bundled cryptography).
+
+## 0.7.8 — 2026-07-15
+
+### Removed the non-functional imported-device push path
+
+Live testing against the bridge showed that the external device API (port 8999)
+does **not** deliver push events for imported (foreign) devices: the `subscribe`
+message is rejected (`no device tagged '' found`) and no `channelStates` /
+`sensorStates` / `binaryInputStates` notifications are ever sent. Those device
+events are routed by the bridge to the digitalSTROM vdSM, not to the external
+device API.
+
+The subscribe/apply code path was therefore dead. This release removes it
+entirely — `_async_subscribe_push()`, the dSUID push routing in
+`async_handle_plan44_message()`, the `async_apply_push_*` coordinator methods,
+the `parse_push_sensor_states` helper, and the `push_enabled` option toggle —
+together with the tests that covered it. The documentation is corrected
+accordingly: **imported devices are polled** from the web vdc JSON API at the
+configured interval.
+
+This corrects the 0.7.5 note below, which claimed sensor/binary\_sensor entities
+update via push. They do not; they are polled.
+
+Export (HA → plan44) and control-back for exported / manual tag-based devices are
+unaffected and continue to use the external device API as before, so
+`iot_class: local_push` still reflects that push-based control path.
+
+---
+
 ## 0.7.5 — 2026-07-11
 
 ### Push updates extended to sensor and binary\_sensor entities

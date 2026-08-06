@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from homeassistant.config_entries import ConfigEntry
 
 if TYPE_CHECKING:
+    from .bridge_client import Plan44BridgeClient
     from .coordinator import Plan44Coordinator
     from .device_coordinator import Plan44DeviceCoordinator
     from .plan44_client import Plan44Client
@@ -25,7 +26,6 @@ CONF_PORT = "port"
 CONF_VDC_MODEL_NAME = "vdc_model_name"
 CONF_AUTO_REPUBLISH = "auto_republish"
 CONF_REVERSE_ENABLED = "reverse_enabled"
-CONF_PUSH_ENABLED = "push_enabled"
 CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_BLOCKLIST_INTEGRATIONS = "blocklist_integrations"
 CONF_BLOCKLIST_ENTITY_ID_PREFIXES = "blocklist_entity_id_prefixes"
@@ -43,16 +43,28 @@ CONF_WEB_CERT = "web_cert_pem"
 # Intended as a temporary workaround for CA-chain issues.
 CONF_VERIFY_SSL = "verify_ssl"
 
+# Real-time import via the vdcd *bridge API* (port 4444, localhost-only on the
+# bridge) reached through an SSH direct-tcpip tunnel. Pushes every changed
+# channel of "bridged" devices instantly, incl. raw sensors (e.g. acceleration)
+# that Matter cannot represent. Opt-in; the REST poll stays as fallback.
+CONF_REALTIME_ENABLED = "realtime_enabled"
+CONF_SSH_USER = "ssh_user"
+CONF_SSH_PORT = "ssh_port"
+CONF_SSH_PRIVATE_KEY = "ssh_private_key"
+CONF_BRIDGE_API_PORT = "bridge_api_port"
+
 DEFAULT_PORT = 8999
 DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"
 DEFAULT_AUTO_REPUBLISH = True
 DEFAULT_REVERSE_ENABLED = True
-DEFAULT_PUSH_ENABLED = True
 DEFAULT_RECONNECT_INTERVAL = 10
 DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom_smart"
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 DEFAULT_WEB_POLL_INTERVAL = 30
 DEFAULT_VERIFY_SSL = True
+DEFAULT_REALTIME_ENABLED = False
+DEFAULT_SSH_PORT = 22
+DEFAULT_BRIDGE_API_PORT = 4444
 
 SUBENTRY_TYPE_VIRTUAL_DEVICE = "virtual_device"
 SUBENTRY_TYPE_P44_DEVICE = "p44_device"
@@ -123,6 +135,7 @@ class Plan44RuntimeData:
     store: Plan44Store
     web_api: Plan44WebApi | None = None
     device_coordinator: Plan44DeviceCoordinator | None = None
+    bridge_client: Plan44BridgeClient | None = None
 
 
 type Plan44ConfigEntry = ConfigEntry[Plan44RuntimeData]
