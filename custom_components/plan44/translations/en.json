@@ -45,10 +45,17 @@
           "web_user": "Web API user",
           "web_password": "Web API password",
           "web_poll_interval": "Device poll interval (seconds)",
-          "verify_ssl": "Verify SSL certificate"
+          "verify_ssl": "Verify SSL certificate",
+          "realtime_enabled": "Real-time updates via bridge API (SSH)",
+          "ssh_user": "SSH user (bridge)",
+          "ssh_port": "SSH port",
+          "ssh_private_key": "SSH private key (bridge)",
+          "bridge_api_port": "Bridge API port"
         },
         "data_description": {
-          "verify_ssl": "Disable to skip TLS certificate verification. Use only as a temporary workaround when the bridge certificate is issued by an internal CA."
+          "verify_ssl": "Disable to skip TLS certificate verification. Use only as a temporary workaround when the bridge certificate is issued by an internal CA.",
+          "realtime_enabled": "Push imported-device values (including raw sensors like acceleration) in real time by tunnelling to the bridge API over SSH. Requires the SSH user + private key below; polling stays active as a fallback.",
+          "ssh_private_key": "Private key (PEM) for a dedicated, forward-only SSH key on the bridge. Paste the full key including the BEGIN/END lines."
         }
       }
     }

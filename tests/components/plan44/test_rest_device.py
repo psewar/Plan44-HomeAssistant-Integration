@@ -158,6 +158,40 @@ async def test_rest_device_values_reflect_poll(
     assert bat_state.state == "off"  # low_battery False
 
 
+async def test_bridge_push_updates_entity_immediately(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A real-time bridge-API push (via the coordinator) updates the entity.
+
+    This is the wiring the SSH bridge client feeds: apply_push_update merges the
+    value into the same coordinator data the polled entity reads.
+    """
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    dc = entry.runtime_data.device_coordinator
+    assert dc is not None
+
+    by_uid = {e.unique_id: e for e in async_get_entity_registry(hass).entities.values()}
+    temp = by_uid[f"{entry.entry_id}_{next(iter(entry.subentries))}_temperature"]
+    polled = hass.states.get(temp.entity_id)
+    assert polled is not None and float(polled.state) == 21.5  # from poll
+
+    # a push for an unimported device is ignored (no crash, no effect)
+    dc.apply_push_update("UNKNOWNDSUID", "sensor", "temperature", 1.0)
+    # a push for our device updates the entity in real time
+    dc.apply_push_update(_DSUID, "sensor", "temperature", 99.9)
+    await hass.async_block_till_done()
+
+    pushed = hass.states.get(temp.entity_id)
+    assert pushed is not None and float(pushed.state) == 99.9
+
+
 async def test_web_api_url_derived_from_host(
     hass: HomeAssistant, mock_plan44_client: Any
 ) -> None:

@@ -1,5 +1,29 @@
 # Release notes
 
+## 0.8.0 — 2026-08-06
+
+### Optional real-time updates for imported devices via the bridge API (SSH)
+
+Imported (dSUID) devices can now update **in real time** instead of only on the
+poll interval, by reading the bridge's *bridge API* (the same JSON API p44mbrd /
+Matter uses) over an SSH tunnel. Unlike Matter, this carries the **raw** device
+channels — including ones Matter cannot represent, e.g. acceleration X/Y/Z.
+
+Enable it under the integration options — *"Real-time updates via bridge API
+(SSH)"* — and supply an SSH user plus a dedicated, forward-only private key for
+the bridge. The client opens an SSH `direct-tcpip` channel to the bridge API on
+`127.0.0.1:4444` and feeds every `pushNotification` into the existing imported
+entities; the REST poll stays active as a fallback / initial backfill. This is
+fully opt-in — nothing changes unless you enable it.
+
+Notes:
+- Only devices flagged for bridging on the bridge (its *"Bridge to Matter"*
+  per-device option) are pushed.
+- The bridge API stays localhost-only; the SSH key only needs port-forwarding
+  (install it with `no-pty` + a forced command), so it can't open a shell.
+- Adds `asyncssh` as a dependency (pinned `<2.20` for compatibility with Home
+  Assistant's bundled cryptography).
+
 ## 0.7.8 — 2026-07-15
 
 ### Removed the non-functional imported-device push path

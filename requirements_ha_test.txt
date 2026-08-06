@@ -1,1 +1,4 @@
 pytest-homeassistant-custom-component==0.13.319
+# Runtime dep of the integration (manifest); pinned <2.20 so it stays compatible
+# with Home Assistant's cryptography 46.x (2.20+ needs ML-KEM from cryptography 47+).
+asyncssh>=2.14.0,<2.20.0
