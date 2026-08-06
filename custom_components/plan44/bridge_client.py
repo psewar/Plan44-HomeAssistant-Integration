@@ -24,6 +24,11 @@ _LOGGER = logging.getLogger(__name__)
 
 _RECONNECT_MIN_SECONDS = 5
 _RECONNECT_MAX_SECONDS = 120
+# The bridge-API stream is mostly idle between value changes; a firewall port
+# forward or proxy can drop an idle TCP session. SSH-level keepalives keep the
+# connection (and the NAT state along the way) alive and detect a dead peer.
+_SSH_KEEPALIVE_SECONDS = 15
+_SSH_KEEPALIVE_COUNT_MAX = 4
 
 UpdateCallback = Callable[[BridgeUpdate], None]
 StatusCallback = Callable[[bool], None]
@@ -55,6 +60,7 @@ class Plan44BridgeClient:
         self._task: asyncio.Task[None] | None = None
         self._closing = False
         self._connected = False
+        self._session_started = False
 
     @property
     def connected(self) -> bool:
@@ -82,9 +88,9 @@ class Plan44BridgeClient:
     async def _run(self) -> None:
         delay = _RECONNECT_MIN_SECONDS
         while not self._closing:
+            self._session_started = False
             try:
                 await self._connect_and_stream()
-                delay = _RECONNECT_MIN_SECONDS
             except asyncio.CancelledError:
                 raise
             except Exception as err:  # noqa: BLE001
@@ -97,6 +103,10 @@ class Plan44BridgeClient:
                 self._set_status(connected=False)
             if self._closing:
                 break
+            # A real session (even one that later dropped) means the config is
+            # good, so recover quickly instead of backing off toward the max.
+            if self._session_started:
+                delay = _RECONNECT_MIN_SECONDS
             await asyncio.sleep(delay)
             delay = min(delay * 2, _RECONNECT_MAX_SECONDS)
 
@@ -110,8 +120,11 @@ class Plan44BridgeClient:
             username=self._ssh_user,
             client_keys=[key],
             known_hosts=None,
+            keepalive_interval=_SSH_KEEPALIVE_SECONDS,
+            keepalive_count_max=_SSH_KEEPALIVE_COUNT_MAX,
         ) as conn:
             reader, writer = await conn.open_connection("127.0.0.1", self._bridge_port)
+            self._session_started = True
             self._set_status(connected=True)
             _LOGGER.info(
                 "plan44 bridge API connected (ssh %s@%s -> 127.0.0.1:%s)",
