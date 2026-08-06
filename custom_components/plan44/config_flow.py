@@ -36,6 +36,7 @@ from .const import (
     CONF_REALTIME_ENABLED,
     CONF_RECONNECT_INTERVAL,
     CONF_REVERSE_ENABLED,
+    CONF_SSH_HOST,
     CONF_SSH_PORT,
     CONF_SSH_PRIVATE_KEY,
     CONF_SSH_USER,
@@ -193,6 +194,10 @@ def _options_schema(
                 CONF_REALTIME_ENABLED,
                 default=current.get(CONF_REALTIME_ENABLED, DEFAULT_REALTIME_ENABLED),
             ): bool,
+            vol.Optional(
+                CONF_SSH_HOST,
+                default=current.get(CONF_SSH_HOST, ""),
+            ): str,
             vol.Optional(
                 CONF_SSH_USER,
                 default=current.get(CONF_SSH_USER, ""),
