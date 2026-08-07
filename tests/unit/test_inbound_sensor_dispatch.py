@@ -293,3 +293,52 @@ def test_discovery_not_fired_when_callback_registered() -> None:
             {"message": "sensor", "tag": _TAG, "index": 0, "value": 1.2}, _TAG
         )
         mock_pn.async_create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# hardening: everything the bridge sends is untrusted input
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad_index", ["abc", [1], {"a": 1}, "1.5"])
+def test_malformed_index_does_not_raise(bad_index: object) -> None:
+    """A bad index must be dropped, not raised.
+
+    dispatch_inbound_channel runs inside the TCP reader loop: an exception here
+    tore down the whole session (and every push with it) on one bad message.
+    """
+    coord = _make_coordinator()
+    received: list[float] = []
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, received.append)
+    with patch("custom_components.plan44.coordinator.persistent_notification"):
+        coord.dispatch_inbound_channel(
+            {"message": "sensor", "tag": _TAG, "index": bad_index, "value": 1.0}, _TAG
+        )
+    assert received == []  # dropped, and crucially: no exception escaped
+
+
+@pytest.mark.parametrize("omitted", [{}, {"index": None}])
+def test_missing_or_null_index_defaults_to_zero(omitted: dict[str, object]) -> None:
+    """The guard must not break 'index omitted' — and null means the same."""
+    coord = _make_coordinator()
+    received: list[float] = []
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, received.append)
+    coord.dispatch_inbound_channel(
+        {"message": "sensor", "tag": _TAG, "value": 2.5, **omitted}, _TAG
+    )
+    assert received == [2.5]
+
+
+def test_discovery_tag_cache_is_bounded() -> None:
+    """A flood of distinct bridge tags must not grow memory without limit."""
+    from custom_components.plan44.coordinator import MAX_DISCOVERED_TAGS
+
+    coord = _make_coordinator()
+    with patch("custom_components.plan44.coordinator.persistent_notification"):
+        for i in range(MAX_DISCOVERED_TAGS + 25):
+            tag = f"enoceanaddress:{i:08X}"
+            coord.dispatch_inbound_channel(
+                {"message": "sensor", "tag": tag, "index": 0, "value": 1.0}, tag
+            )
+    seen_tags = coord._discovered_indices_by_tag  # pyright: ignore[reportPrivateUsage]
+    assert len(seen_tags) == MAX_DISCOVERED_TAGS

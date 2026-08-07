@@ -108,13 +108,24 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         """
         if dsuid not in self.imported_dsuids():
             return
-        data: DeviceStates = {k: dict(v) for k, v in (self.data or {}).items()}
-        device = dict(data.get(dsuid) or {})
-        channels = dict(device.get(group) or {})
-        channels[key] = value
-        device[group] = channels
-        data[dsuid] = device
-        self.async_set_updated_data(data)
+        current: DeviceStates = self.data or {}
+        device = current.get(dsuid) or {}
+        channels = device.get(group) or {}
+        if channels.get(key) == value:
+            return  # nothing changed — do not wake every listener
+
+        # Copy-on-write along the touched path only: the untouched devices stay
+        # shared (cheap), but nothing already handed to a consumer is mutated
+        # in place, and a concurrent poll cannot observe a half-updated dict.
+        self.data = {
+            **current,
+            dsuid: {**device, group: {**channels, key: value}},
+        }
+        # Deliberately NOT async_set_updated_data(): that would reschedule the
+        # poll timer (a steady push stream would stop polling entirely) and set
+        # last_update_success=True, masking a broken web API. Push is an extra
+        # source on top of the poll, not a replacement for it.
+        self.async_update_listeners()
 
     @callback
     def _set_web_api_issue(self, *, active: bool) -> None:
