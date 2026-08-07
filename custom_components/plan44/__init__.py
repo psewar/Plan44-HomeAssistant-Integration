@@ -338,27 +338,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
         ),
     )
 
+    # async_initialize() opens the socket and starts the reader/keepalive tasks
+    # and the state listener. Nothing owns those until the entry is fully set
+    # up, so every failure path below must tear them down explicitly —
+    # otherwise a setup retry leaks a coordinator whose (unbounded) reconnect
+    # loop keeps running forever.
     try:
         await coordinator.async_initialize()
     except Exception as err:
+        await coordinator.async_shutdown()
         raise ConfigEntryNotReady(f"Unable to connect to plan44: {err}") from err
 
-    web_api, device_coordinator = await _async_setup_web_api(hass, entry)
-    if device_coordinator is not None:
-        coordinator.set_device_coordinator(device_coordinator)
+    bridge_client: Plan44BridgeClient | None = None
+    try:
+        web_api, device_coordinator = await _async_setup_web_api(hass, entry)
+        bridge_client = await _async_setup_bridge_client(
+            hass, entry, device_coordinator
+        )
 
-    bridge_client = await _async_setup_bridge_client(hass, entry, device_coordinator)
+        entry.runtime_data = Plan44RuntimeData(
+            client=client,
+            coordinator=coordinator,
+            store=store,
+            web_api=web_api,
+            device_coordinator=device_coordinator,
+            bridge_client=bridge_client,
+        )
 
-    entry.runtime_data = Plan44RuntimeData(
-        client=client,
-        coordinator=coordinator,
-        store=store,
-        web_api=web_api,
-        device_coordinator=device_coordinator,
-        bridge_client=bridge_client,
-    )
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except BaseException:
+        if bridge_client is not None:
+            await bridge_client.async_stop()
+        await coordinator.async_shutdown()
+        raise
 
     entry.async_on_unload(entry.add_update_listener(_async_handle_entry_updated))
     entry.async_on_unload(

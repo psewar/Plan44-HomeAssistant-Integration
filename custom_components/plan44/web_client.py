@@ -16,12 +16,13 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeGuard
 
 from homeassistant.core import HomeAssistant
 
@@ -532,13 +533,24 @@ def _iter_light_nodes(payload: Any) -> list[dict[str, Any]]:
     return found
 
 
+def _is_finite_number(value: Any) -> TypeGuard[int | float]:
+    """True for a real, finite number.
+
+    ``json.loads`` accepts bare ``NaN``/``Infinity``, and those pass a plain
+    isinstance check — then blow up later in ``round()``/Decimal conversions,
+    inside a coordinator listener where the traceback costs every entity that
+    would have been updated after it.
+    """
+    return isinstance(value, (int, float)) and math.isfinite(value)
+
+
 def _ch_float(
     channel_descs: dict[str, Any], key: str, attr: str, default: float
 ) -> float:
     ch = channel_descs.get(key)
     if isinstance(ch, dict):
         v = ch.get(attr)
-        if isinstance(v, (int, float)):
+        if _is_finite_number(v):
             return float(v)
     return default
 
@@ -548,7 +560,8 @@ def _channel_state_value(channel_states: dict[str, Any], key: str) -> float | No
     if not isinstance(ch, dict):
         return None
     v = ch.get("value")
-    return float(v) if isinstance(v, (int, float)) else None
+    # None is already the "channel unavailable" signal everywhere downstream.
+    return float(v) if _is_finite_number(v) else None
 
 
 def parse_light_devices(payload: Any) -> list[DiscoveredLightDevice]:

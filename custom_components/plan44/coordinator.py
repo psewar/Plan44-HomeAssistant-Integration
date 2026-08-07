@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any, cast
-
-if TYPE_CHECKING:
-    from .device_coordinator import Plan44DeviceCoordinator
+from typing import Any, cast
 
 from homeassistant.components import persistent_notification
 from homeassistant.components.light import ATTR_BRIGHTNESS
@@ -79,13 +77,18 @@ class Plan44Coordinator:
         self._last_origin_by_entity: dict[str, str] = {}
         self._last_write_ts_by_entity: dict[str, float] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
+        # Set once async_shutdown() starts, so in-flight fire-and-forget
+        # forward tasks cannot re-open the connection after teardown.
+        self._shutting_down = False
+        # Populated by _refresh_exports() (called first thing in
+        # async_initialize); declared here so the types are known everywhere.
+        self._exports_by_entity: dict[str, ExportRecord] = {}
+        self._entity_by_uid: dict[str, str] = {}
         self._startup_sync_unsub: Callable[[], None] | None = None
         # (message_type, tag, index) → callback for channels pushed by P44 into HA
         self._inbound_callbacks: dict[tuple[str, str, int], InboundChannelCallback] = {}
         # tag → set of channel indices seen from P44 but not yet imported
         self._discovered_indices_by_tag: dict[str, set[int]] = {}
-        # Coordinator for dSUID-based device polling — receives push notifications
-        self._device_coordinator: Plan44DeviceCoordinator | None = None
         # Connection state, surfaced through the bridge diagnostic entities.
         self.connected_since: float | None = None
         self.reconnect_count = 0
@@ -109,10 +112,6 @@ class Plan44Coordinator:
         self._blocked_entity_prefixes = self._parse_csv(
             cast(str | list[str], blocked_prefixes),
         )
-
-    def set_device_coordinator(self, dc: Plan44DeviceCoordinator) -> None:
-        """Attach the device coordinator so push notifications can be routed to it."""
-        self._device_coordinator = dc
 
     @callback
     def _set_connected(self, connected: bool) -> None:
@@ -141,6 +140,7 @@ class Plan44Coordinator:
                 )
 
     async def async_shutdown(self) -> None:
+        self._shutting_down = True
         for unsub in self._tracked_unsubs:
             unsub()
         self._tracked_unsubs.clear()
@@ -177,12 +177,6 @@ class Plan44Coordinator:
             attempt += 1
             try:
                 await self.client.async_connect()
-                self._set_connected(True)
-                self.reconnect_count += 1
-                if self.auto_republish:
-                    await self.async_republish_virtual_devices()
-                _LOGGER.info("Reconnected to plan44 on attempt %s", attempt)
-                return
             except asyncio.CancelledError:
                 raise
             except Exception as err:
@@ -202,6 +196,24 @@ class Plan44Coordinator:
                 )
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, MAX_RECONNECT_DELAY_SECONDS)
+                continue
+
+            # Connected. Republishing is a separate concern: if it fails the
+            # link is still up, so it must not drive the reconnect loop (that
+            # would spin forever and inflate the reconnect_count sensor).
+            self._set_connected(True)
+            self.reconnect_count += 1
+            _LOGGER.info("Reconnected to plan44 on attempt %s", attempt)
+            if self.auto_republish:
+                try:
+                    await self.async_republish_virtual_devices()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning(
+                        "Reconnected to plan44 but republishing failed: %s", err
+                    )
+            return
 
     def _install_state_listener(self) -> None:
         tracked = list(self._exports_by_entity)
@@ -267,7 +279,7 @@ class Plan44Coordinator:
 
     async def async_sync_runtime_exports(self) -> None:
         """Refresh runtime exports without tearing down the P44 connection."""
-        previous_exports = dict(getattr(self, "_exports_by_entity", {}))
+        previous_exports = dict(self._exports_by_entity)
         self._refresh_exports()
         await self.async_reinstall_listener()
 
@@ -393,6 +405,11 @@ class Plan44Coordinator:
         entity_id: str,
         force: bool = False,
     ) -> None:
+        if self._shutting_down:
+            # A task queued before teardown must not resurrect the connection:
+            # async_ensure_connected() below would open a socket nobody owns.
+            return
+
         cfg = self._exports_by_entity.get(entity_id)
         if cfg is None or not cfg["enabled"]:
             return
@@ -557,6 +574,16 @@ class Plan44Coordinator:
                 value_raw,
             )
             return
+        if not math.isfinite(value):
+            # json.loads accepts bare NaN/Infinity; those survive every numeric
+            # guard downstream and blow up in round()/Decimal conversions.
+            _LOGGER.warning(
+                "plan44 sent a non-finite %s value for tag '%s': %s",
+                message,
+                tag,
+                value_raw,
+            )
+            return
         try:
             index = int(msg.get("index", 0) or 0)
         except ValueError, TypeError:
@@ -596,6 +623,10 @@ class Plan44Coordinator:
             )
             return
         seen = self._discovered_indices_by_tag.setdefault(tag, set())
+        if index in seen:
+            # Already reported: re-creating the identical notification on every
+            # push costs a store write + a websocket broadcast to every client.
+            return
         seen.add(index)
         indices = ", ".join(str(i) for i in sorted(seen))
         notification_id = f"{DOMAIN}_{self.entry.entry_id}_discovery_{tag}"

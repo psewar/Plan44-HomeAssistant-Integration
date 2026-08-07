@@ -1,5 +1,38 @@
 # Release notes
 
+## 0.9.1 — 2026-08-06
+
+Follow-up to the 0.9.0 review — completes two fixes that were incomplete and
+closes the remaining verified findings.
+
+- **The pinned SSH host key could never be cleared.** 0.9.0 pins the bridge
+  host key and refuses a different one, but nothing could forget it: the key
+  lives in the config entry's *data* while the options flow writes *options*,
+  so the "turn real-time mode off and on again" advice in the error message did
+  nothing. After a genuine bridge reinstall the tunnel was stuck until the
+  entry was deleted. New option **"Forget the pinned SSH host key"** does it
+  properly, and the error message now points at it.
+- **A failed setup no longer leaks the connection.** Anything raising between
+  the initial connect and the end of setup left the socket, the reader and
+  keepalive tasks and the state listener running — and each retry added
+  another, each with 0.9.0's never-give-up reconnect loop.
+- **State forwarding can no longer resurrect a torn-down connection.** A
+  fire-and-forget forward task that was in flight during a reload could
+  re-open a socket that nothing owned.
+- **A failing republish no longer drives the reconnect loop** — the link is up
+  at that point, so it was spinning (and inflating the reconnect counter)
+  while everything worked.
+- **Non-finite values from the bridge** (`NaN`/`Infinity`, which JSON allows)
+  are now dropped instead of raising inside a coordinator update, where the
+  traceback cost every entity queued behind it.
+- The discovery notification no longer re-fires for an already-reported
+  channel; connection errors in the config flow are logged instead of silently
+  becoming "cannot connect"; the device picker no longer ignores the
+  "verify SSL" setting; diagnostics and system health now show the real-time
+  link state and whether the TLS certificate is actually pinned.
+- Internal: removed a dead coordinator hook, declared two attributes in
+  `__init__` instead of creating them on the fly.
+
 ## 0.9.0 — 2026-08-06
 
 Hardening release from a full security / performance / clean-code review.

@@ -7,6 +7,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from .const import (
     CONF_HOST,
     CONF_PORT,
+    CONF_RESET_SSH_HOST_KEY,
     CONF_SSH_HOST,
     CONF_SSH_HOST_KEY,
     CONF_SSH_PORT,
@@ -37,6 +38,10 @@ TO_REDACT = {
     CONF_SSH_USER,
     CONF_SSH_PRIVATE_KEY,
     CONF_SSH_HOST_KEY,
+    # Not a secret (a transient flag that is never persisted), but the guard
+    # test is deliberately strict: redacting a non-secret costs nothing,
+    # while an allowlist could be used to wave through a real one.
+    CONF_RESET_SSH_HOST_KEY,
 }
 
 
@@ -51,6 +56,15 @@ async def async_get_config_entry_diagnostics(
         "entry_options": dict(entry.options),
         "exports": runtime.store.data,
         "client_connected": runtime.client.is_connected,
+        # Real-time (bridge API over SSH) link — None when the mode is off.
+        "realtime_connected": (
+            runtime.bridge_client.connected
+            if runtime.bridge_client is not None
+            else None
+        ),
+        # Whether the bridge TLS certificate is actually pinned (a failed
+        # trust-on-first-use fetch silently falls back to no verification).
+        "web_cert_pinned": bool(entry.data.get(CONF_WEB_CERT)),
     }
 
     return async_redact_data(data, TO_REDACT)
