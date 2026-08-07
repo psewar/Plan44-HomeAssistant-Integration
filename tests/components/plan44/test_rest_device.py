@@ -290,6 +290,64 @@ async def test_web_api_unreachable_creates_and_clears_repair_issue(
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_WEB_API_UNREACHABLE) is None
 
 
+async def test_push_does_not_reschedule_poll_or_mask_failure(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Push must not reset the poll timer nor fake a successful web API.
+
+    async_set_updated_data() would do both: a steady push stream would stop the
+    REST poll entirely and a broken web API would keep reporting healthy.
+    """
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    dc = entry.runtime_data.device_coordinator
+    assert dc is not None
+    scheduled_before = dc._unsub_refresh  # the pending poll timer
+
+    # simulate a failed poll, then a push arriving afterwards
+    dc.last_update_success = False
+    dc.apply_push_update(_DSUID, "sensor", "temperature", 42.0)
+    await hass.async_block_till_done()
+
+    assert dc.data[_DSUID]["sensor"]["temperature"] == 42.0  # value applied
+    assert dc.last_update_success is False  # web-API failure still visible
+    assert dc._unsub_refresh is scheduled_before  # poll timer untouched
+
+
+async def test_push_with_unchanged_value_is_a_noop(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Re-pushing the same value must not wake up every entity listener."""
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    dc = entry.runtime_data.device_coordinator
+    assert dc is not None
+    calls = 0
+
+    def _listener() -> None:
+        nonlocal calls
+        calls += 1
+
+    unsub = dc.async_add_listener(_listener)
+    dc.apply_push_update(_DSUID, "sensor", "temperature", 21.5)  # same as poll
+    assert calls == 0
+    dc.apply_push_update(_DSUID, "sensor", "temperature", 23.0)  # changed
+    assert calls == 1
+    unsub()
+
+
 async def test_rest_device_reconfigure_is_name_only(
     hass: HomeAssistant, mock_plan44_client: Any
 ) -> None:
