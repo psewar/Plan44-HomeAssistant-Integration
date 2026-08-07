@@ -59,6 +59,9 @@ CONF_BRIDGE_API_PORT = "bridge_api_port"
 # The bridge's SSH host key in OpenSSH one-line form, pinned on first use so
 # later tunnels verify the peer instead of trusting any host key (MITM guard).
 CONF_SSH_HOST_KEY = "ssh_host_key"
+# Transient options flag: when set, the stored host key is forgotten so the
+# next connection re-pins (use after a legitimate bridge reinstall).
+CONF_RESET_SSH_HOST_KEY = "reset_ssh_host_key"
 
 DEFAULT_PORT = 8999
 DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"

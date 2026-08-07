@@ -374,6 +374,21 @@ def test_parse_light_states_skips_no_brightness() -> None:
     assert states == {}
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_channel_state_is_unavailable(bad: float) -> None:
+    """NaN/Infinity must become None, not reach round()/Decimal downstream.
+
+    json.loads accepts bare NaN/Infinity, and they pass a plain isinstance
+    check — then raise inside a coordinator listener, costing every entity
+    that would have been updated after the failing one.
+    """
+    # exercised through the public parser, not the private helper: a
+    # non-finite brightness is treated exactly like a missing one.
+    assert parse_push_light_channel_states({"brightness": {"value": bad}}) is None
+    finite = parse_push_light_channel_states({"brightness": {"value": 42.0}})
+    assert finite is not None and finite.brightness == 42.0
+
+
 def test_ssl_context_unpinned_disables_verification() -> None:
     """Before a cert is pinned we fall back to no verification."""
     ctx = build_ssl_context(None)

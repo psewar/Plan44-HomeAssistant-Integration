@@ -329,6 +329,37 @@ def test_missing_or_null_index_defaults_to_zero(omitted: dict[str, object]) -> N
     assert received == [2.5]
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_value_is_dropped(bad: float) -> None:
+    """A non-finite pushed value must not reach the entity as Decimal('NaN')."""
+    coord = _make_coordinator()
+    received: list[float] = []
+    coord.register_inbound_callback(MSG_SENSOR, _TAG, 0, received.append)
+    coord.dispatch_inbound_channel(
+        {"message": "sensor", "tag": _TAG, "index": 0, "value": bad}, _TAG
+    )
+    assert received == []
+
+
+def test_repeated_discovery_does_not_renotify() -> None:
+    """The same (tag, index) must notify once, not on every push."""
+    coord = _make_coordinator()
+    tag = "enoceanaddress:BEEF"
+    with patch(
+        "custom_components.plan44.coordinator.persistent_notification"
+    ) as mock_pn:
+        for _ in range(5):
+            coord.dispatch_inbound_channel(
+                {"message": "sensor", "tag": tag, "index": 0, "value": 1.0}, tag
+            )
+        assert mock_pn.async_create.call_count == 1
+        # a genuinely new channel on the same device still notifies
+        coord.dispatch_inbound_channel(
+            {"message": "sensor", "tag": tag, "index": 3, "value": 1.0}, tag
+        )
+        assert mock_pn.async_create.call_count == 2
+
+
 def test_discovery_tag_cache_is_bounded() -> None:
     """A flood of distinct bridge tags must not grow memory without limit."""
     from custom_components.plan44.coordinator import MAX_DISCOVERED_TAGS
