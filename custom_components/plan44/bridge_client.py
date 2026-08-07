@@ -22,16 +22,30 @@ from .bridge_protocol import BridgeUpdate, parse_line, parse_push_updates
 
 _LOGGER = logging.getLogger(__name__)
 
-_RECONNECT_MIN_SECONDS = 5
-_RECONNECT_MAX_SECONDS = 120
+RECONNECT_MIN_SECONDS = 5
+RECONNECT_MAX_SECONDS = 120
+# Only treat a session as "healthy enough to retry fast" once it has lived this
+# long; otherwise a tunnel that opens and instantly EOFs would spin at the
+# minimum delay forever.
+HEALTHY_SESSION_SECONDS = 60
 # The bridge-API stream is mostly idle between value changes; a firewall port
 # forward or proxy can drop an idle TCP session. SSH-level keepalives keep the
 # connection (and the NAT state along the way) alive and detect a dead peer.
-_SSH_KEEPALIVE_SECONDS = 15
-_SSH_KEEPALIVE_COUNT_MAX = 4
+SSH_KEEPALIVE_SECONDS = 15
+SSH_KEEPALIVE_COUNT_MAX = 4
 
 UpdateCallback = Callable[[BridgeUpdate], None]
 StatusCallback = Callable[[bool], None]
+HostKeyCallback = Callable[[str], None]
+
+
+class Plan44BridgeHostKeyError(Exception):
+    """The bridge presented a host key that does not match the pinned one."""
+
+
+def pinned_known_hosts(host_key: str) -> bytes:
+    """known_hosts file contents pinning exactly this one host key."""
+    return f"* {host_key.strip()}\n".encode()
 
 
 class Plan44BridgeClient:
@@ -48,6 +62,8 @@ class Plan44BridgeClient:
         bridge_port: int,
         on_update: UpdateCallback,
         on_status: StatusCallback | None = None,
+        pinned_host_key: str | None = None,
+        on_host_key: HostKeyCallback | None = None,
     ) -> None:
         self._hass = hass
         self._ssh_host = ssh_host
@@ -57,6 +73,8 @@ class Plan44BridgeClient:
         self._bridge_port = bridge_port
         self._on_update = on_update
         self._on_status = on_status
+        self._pinned_host_key = pinned_host_key
+        self._on_host_key = on_host_key
         self._task: asyncio.Task[None] | None = None
         self._closing = False
         self._connected = False
@@ -81,18 +99,29 @@ class Plan44BridgeClient:
             task.cancel()
             try:
                 await task
-            except asyncio.CancelledError, Exception:  # noqa: BLE001
+            except asyncio.CancelledError:
+                # Cancelling our own task is the expected path here; do NOT let
+                # it propagate (and do not swallow a cancellation aimed at us —
+                # async_stop is only ever awaited from unload).
                 pass
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "plan44 bridge client stopped with an error", exc_info=True
+                )
         self._set_status(connected=False)
 
     async def _run(self) -> None:
-        delay = _RECONNECT_MIN_SECONDS
+        delay = RECONNECT_MIN_SECONDS
         while not self._closing:
             self._session_started = False
+            started_at = self._hass.loop.time()
             try:
                 await self._connect_and_stream()
             except asyncio.CancelledError:
                 raise
+            except Plan44BridgeHostKeyError as err:
+                # Security-relevant: do not paper over it with a retry message.
+                _LOGGER.error("plan44 bridge API host key rejected: %s", err)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
                     "plan44 bridge API client error (%s); reconnecting in %ss",
@@ -103,26 +132,48 @@ class Plan44BridgeClient:
                 self._set_status(connected=False)
             if self._closing:
                 break
-            # A real session (even one that later dropped) means the config is
-            # good, so recover quickly instead of backing off toward the max.
-            if self._session_started:
-                delay = _RECONNECT_MIN_SECONDS
+            # Only a session that actually stayed up proves the config is good.
+            # Resetting on any session would spin at the minimum delay forever
+            # when the tunnel opens and immediately EOFs.
+            lived = self._hass.loop.time() - started_at
+            if self._session_started and lived >= HEALTHY_SESSION_SECONDS:
+                delay = RECONNECT_MIN_SECONDS
             await asyncio.sleep(delay)
-            delay = min(delay * 2, _RECONNECT_MAX_SECONDS)
+            delay = min(delay * 2, RECONNECT_MAX_SECONDS)
 
     async def _connect_and_stream(self) -> None:
         key = asyncssh.import_private_key(self._ssh_private_key)
-        # known_hosts=None: the bridge is a fixed LAN device; SSH provides the
-        # transport encryption/auth. (Host-key pinning is a possible follow-up.)
-        async with asyncssh.connect(
-            self._ssh_host,
-            port=self._ssh_port,
-            username=self._ssh_user,
-            client_keys=[key],
-            known_hosts=None,
-            keepalive_interval=_SSH_KEEPALIVE_SECONDS,
-            keepalive_count_max=_SSH_KEEPALIVE_COUNT_MAX,
-        ) as conn:
+        # Trust-on-first-use host-key pinning: once a host key is known, only
+        # that exact key is accepted, so a man-in-the-middle on the SSH path is
+        # rejected instead of silently relaying the tunnel.
+        known_hosts = (
+            pinned_known_hosts(self._pinned_host_key) if self._pinned_host_key else None
+        )
+        try:
+            conn_ctx = asyncssh.connect(
+                self._ssh_host,
+                port=self._ssh_port,
+                username=self._ssh_user,
+                client_keys=[key],
+                known_hosts=known_hosts,
+                keepalive_interval=SSH_KEEPALIVE_SECONDS,
+                keepalive_count_max=SSH_KEEPALIVE_COUNT_MAX,
+            )
+        except asyncssh.HostKeyNotVerifiable as err:  # pragma: no cover - defensive
+            raise Plan44BridgeHostKeyError(str(err)) from err
+
+        try:
+            conn = await conn_ctx
+        except asyncssh.HostKeyNotVerifiable as err:
+            raise Plan44BridgeHostKeyError(
+                "the bridge presented an unexpected SSH host key — refusing to "
+                "connect. If the bridge was reinstalled, clear the stored host "
+                "key by turning real-time mode off and on again in the options"
+            ) from err
+
+        async with conn:
+            if self._pinned_host_key is None:
+                self._remember_host_key(conn)
             reader, writer = await conn.open_connection("127.0.0.1", self._bridge_port)
             self._session_started = True
             self._set_status(connected=True)
@@ -147,6 +198,20 @@ class Plan44BridgeClient:
                         self._dispatch(update)
             finally:
                 writer.close()
+
+    def _remember_host_key(self, conn: asyncssh.SSHClientConnection) -> None:
+        """Capture the host key on first use so later sessions can pin it."""
+        host_key = conn.get_server_host_key()
+        if host_key is None or self._on_host_key is None:
+            return
+        line = host_key.export_public_key("openssh").decode().strip()
+        self._pinned_host_key = line
+        _LOGGER.info(
+            "plan44 bridge: pinned SSH host key (%s) of %s on first use",
+            host_key.get_algorithm(),
+            self._ssh_host,
+        )
+        self._on_host_key(line)
 
     @callback
     def _dispatch(self, update: BridgeUpdate) -> None:

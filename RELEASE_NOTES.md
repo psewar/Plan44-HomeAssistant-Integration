@@ -1,5 +1,51 @@
 # Release notes
 
+## 0.9.0 — 2026-08-06
+
+Hardening release from a full security / performance / clean-code review.
+
+### Security
+
+- **The SSH private key was written to the diagnostics file in clear text.**
+  `TO_REDACT` was never extended when the real-time SSH option was added in
+  0.8.0, so downloading diagnostics exposed the key that grants access to the
+  bridge. It (and the SSH host/port/user, the pinned host key and the TLS
+  certificate) are now redacted. **If you downloaded or shared a diagnostics
+  file from 0.8.0–0.8.2, rotate that SSH key.** A guard test now fails if any
+  future credential-ish option is added without redacting it.
+- **The SSH tunnel now pins the bridge host key (trust-on-first-use).**
+  Previously it accepted any host key, so anything able to intercept the SSH
+  path could impersonate the bridge. The key is captured on first connect and
+  stored; later connections accept only that key and otherwise refuse with a
+  clear message. To re-pin after a genuine bridge reinstall, turn real-time
+  mode off and on again in the options.
+- **Malformed data from the bridge can no longer tear down the connection.**
+  A non-numeric channel `index` raised inside the TCP reader loop, killing the
+  session (and every push with it) on a single bad message; it is now rejected
+  like a bad value. The discovery cache keyed by bridge-supplied tags is now
+  bounded, so an unexpected flood of tags cannot grow memory or spam
+  notifications without limit.
+
+### Performance / correctness
+
+- **Real-time pushes no longer starve the REST poll.** Pushes went through
+  `async_set_updated_data()`, which reschedules the poll timer and marks the
+  update successful — a steady push stream stopped polling entirely and a
+  broken web API kept reporting healthy. Pushes now update the data and notify
+  listeners without touching the poll timer or the success flag, and a push
+  carrying an unchanged value no longer wakes every entity.
+- **The bridge connection no longer gives up permanently.** After 10 failed
+  reconnects the integration stayed dead until Home Assistant was restarted;
+  it now keeps retrying with backoff (and stops spamming the log after the
+  first attempts).
+- **A tunnel that opens and immediately drops no longer reconnect-storms** —
+  the backoff only resets after a session that actually stayed up.
+- `async_unload_entry` now reports the real platform-unload result instead of
+  always returning `True`, and stopping the bridge client no longer swallows
+  cancellation.
+- The real-time link state is now logged and broadcast, so a permanently dead
+  tunnel is visible instead of silently degrading to poll-only.
+
 ## 0.8.2 — 2026-08-06
 
 - **Keep the real-time bridge connection alive across a firewall / port-forward.**

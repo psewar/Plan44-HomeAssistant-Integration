@@ -51,8 +51,11 @@ _INBOUND_MESSAGE_TYPES = (MSG_SENSOR, MSG_INPUT)
 
 _LOGGER = logging.getLogger(__name__)
 
-MAX_RECONNECT_ATTEMPTS = 10
 MAX_RECONNECT_DELAY_SECONDS = 300
+# Reconnect attempts logged at warning level before dropping to debug.
+NOISY_RECONNECT_ATTEMPTS = 10
+# Cap on distinct bridge-supplied tags we remember for discovery notifications.
+MAX_DISCOVERED_TAGS = 50
 
 
 class Plan44Coordinator:
@@ -162,36 +165,38 @@ class Plan44Coordinator:
         self._reconnect_task = self.hass.async_create_task(self._async_reconnect_loop())
 
     async def _async_reconnect_loop(self) -> None:
+        """Reconnect to the bridge, backing off but never giving up.
+
+        The bridge can be unreachable for arbitrarily long (reboot, firmware
+        update, network outage).  A bounded number of attempts used to leave
+        the integration permanently dead until Home Assistant was restarted.
+        """
         delay = max(1, self._reconnect_interval)
-        for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 await self.client.async_connect()
                 self._set_connected(True)
                 self.reconnect_count += 1
                 if self.auto_republish:
                     await self.async_republish_virtual_devices()
-                _LOGGER.info(
-                    "Reconnected to plan44 on attempt %s/%s",
-                    attempt,
-                    MAX_RECONNECT_ATTEMPTS,
-                )
+                _LOGGER.info("Reconnected to plan44 on attempt %s", attempt)
                 return
             except asyncio.CancelledError:
                 raise
             except Exception as err:
-                if attempt >= MAX_RECONNECT_ATTEMPTS:
-                    _LOGGER.error(
-                        "Failed to reconnect to plan44 after %s attempts: %s",
-                        MAX_RECONNECT_ATTEMPTS,
-                        err,
-                    )
-                    return
-
-                _LOGGER.warning(
-                    "Reconnect to plan44 failed on attempt %s/%s: %s. "
+                # Stay noisy for the first attempts, then drop to debug so a
+                # long outage does not flood the log every few minutes.
+                log = (
+                    _LOGGER.warning
+                    if attempt <= NOISY_RECONNECT_ATTEMPTS
+                    else (_LOGGER.debug)
+                )
+                log(
+                    "Reconnect to plan44 failed on attempt %s: %s. "
                     "Retrying in %s seconds",
                     attempt,
-                    MAX_RECONNECT_ATTEMPTS,
                     err,
                     delay,
                 )
@@ -552,7 +557,18 @@ class Plan44Coordinator:
                 value_raw,
             )
             return
-        index = int(msg.get("index", 0))
+        try:
+            index = int(msg.get("index", 0) or 0)
+        except ValueError, TypeError:
+            # Everything the bridge sends is untrusted input: a malformed index
+            # must not escape into the reader loop and tear down the session.
+            _LOGGER.warning(
+                "plan44 sent an invalid %s index for tag '%s': %s",
+                message,
+                tag,
+                msg.get("index"),
+            )
+            return
         cb = self._inbound_callbacks.get((message, tag, index))
         if cb is not None:
             cb(value)
@@ -566,6 +582,19 @@ class Plan44Coordinator:
         which template fits.  HA dedupes by notification_id, so repeated pushes
         just refresh the existing notification.
         """
+        if (
+            tag not in self._discovered_indices_by_tag
+            and len(self._discovered_indices_by_tag) >= MAX_DISCOVERED_TAGS
+        ):
+            # Bounded: the tag comes from the bridge, so an unexpected flood of
+            # distinct tags must not grow this dict (or the notification list)
+            # without limit.
+            _LOGGER.debug(
+                "plan44 discovery cache full (%s tags); ignoring new tag '%s'",
+                MAX_DISCOVERED_TAGS,
+                tag,
+            )
+            return
         seen = self._discovered_indices_by_tag.setdefault(tag, set())
         seen.add(index)
         indices = ", ".join(str(i) for i in sorted(seen))

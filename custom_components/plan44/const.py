@@ -56,6 +56,9 @@ CONF_SSH_USER = "ssh_user"
 CONF_SSH_PORT = "ssh_port"
 CONF_SSH_PRIVATE_KEY = "ssh_private_key"
 CONF_BRIDGE_API_PORT = "bridge_api_port"
+# The bridge's SSH host key in OpenSSH one-line form, pinned on first use so
+# later tunnels verify the peer instead of trusting any host key (MITM guard).
+CONF_SSH_HOST_KEY = "ssh_host_key"
 
 DEFAULT_PORT = 8999
 DEFAULT_VDC_MODEL_NAME = "Home Assistant Bridge"

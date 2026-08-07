@@ -6,6 +6,7 @@ from typing import Any, cast
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from .bridge_client import Plan44BridgeClient
@@ -24,6 +25,7 @@ from .const import (
     CONF_REALTIME_ENABLED,
     CONF_REVERSE_ENABLED,
     CONF_SSH_HOST,
+    CONF_SSH_HOST_KEY,
     CONF_SSH_PORT,
     CONF_SSH_PRIVATE_KEY,
     CONF_SSH_USER,
@@ -45,6 +47,7 @@ from .const import (
     SUPPORTED_KINDS,
     Plan44ConfigEntry,
     Plan44RuntimeData,
+    signal_bridge_connection,
 )
 from .coordinator import Plan44Coordinator
 from .device_coordinator import Plan44DeviceCoordinator
@@ -258,6 +261,24 @@ async def _async_setup_bridge_client(
             update.dsuid, update.group, update.key, update.value
         )
 
+    @callback
+    def _on_status(connected: bool) -> None:
+        # Surface the real-time link state so a permanently dead tunnel is
+        # visible instead of silently degrading to poll-only.
+        _LOGGER.log(
+            logging.INFO if connected else logging.WARNING,
+            "plan44 real-time bridge link %s",
+            "up" if connected else "down",
+        )
+        async_dispatcher_send(hass, signal_bridge_connection(entry.entry_id))
+
+    @callback
+    def _on_host_key(host_key: str) -> None:
+        # Trust-on-first-use: persist the bridge host key so later tunnels pin it.
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_SSH_HOST_KEY: host_key}
+        )
+
     client = Plan44BridgeClient(
         hass,
         ssh_host=str(merged.get(CONF_SSH_HOST) or merged.get(CONF_HOST)),
@@ -266,6 +287,9 @@ async def _async_setup_bridge_client(
         ssh_private_key=str(ssh_key),
         bridge_port=int(merged.get(CONF_BRIDGE_API_PORT, DEFAULT_BRIDGE_API_PORT)),
         on_update=_on_update,
+        on_status=_on_status,
+        pinned_host_key=merged.get(CONF_SSH_HOST_KEY) or None,
+        on_host_key=_on_host_key,
     )
     await client.async_start()
     return client
@@ -344,9 +368,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bo
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Plan44ConfigEntry) -> bool:
-    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    # Always tear the connections down, even if a platform refused to unload —
+    # leaving the SSH tunnel / TCP client running would leak them on reload.
     runtime = entry.runtime_data
     if runtime.bridge_client is not None:
         await runtime.bridge_client.async_stop()
     await runtime.coordinator.async_shutdown()
-    return True
+    return unloaded
