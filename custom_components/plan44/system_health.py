@@ -32,4 +32,11 @@ async def system_health_info(hass: HomeAssistant) -> dict[str, object]:
         "configured_entries": len(entries),
         "connected": runtime.client.is_connected,
         "mapped_exports": len(exports),
+        # None when real-time mode is off, so a dead SSH tunnel is visible
+        # instead of the integration just looking healthy.
+        "realtime_connected": (
+            runtime.bridge_client.connected
+            if runtime.bridge_client is not None
+            else None
+        ),
     }

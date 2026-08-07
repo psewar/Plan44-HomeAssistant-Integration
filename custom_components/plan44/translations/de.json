@@ -51,13 +51,15 @@
           "ssh_user": "SSH-Benutzer (Bridge)",
           "ssh_port": "SSH-Port",
           "ssh_private_key": "SSH-Private-Key (Bridge)",
-          "bridge_api_port": "Bridge-API-Port"
+          "bridge_api_port": "Bridge-API-Port",
+          "reset_ssh_host_key": "Gepinnten SSH-Host-Key vergessen"
         },
         "data_description": {
           "verify_ssl": "Deaktivieren, um die TLS-Zertifikatsprüfung zu überspringen. Nur als temporäre Übergangslösung verwenden, wenn das Bridge-Zertifikat von einer internen CA ausgestellt wurde.",
           "realtime_enabled": "Schiebt Werte importierter Geräte (inkl. Rohsensoren wie Beschleunigung) in Echtzeit per SSH-Tunnel zur Bridge-API. Benötigt den SSH-Benutzer + Private-Key unten; das Polling bleibt als Fallback aktiv.",
           "ssh_host": "Leer lassen, um den Verbindungs-Host zu verwenden. IP oder Hostname eintragen, falls SSH die Bridge unter einer anderen Adresse erreichen muss als die Web-/TCP-API (z. B. die LAN-IP, wenn Port 22 des öffentlichen Hostnamens woanders hin geroutet wird).",
-          "ssh_private_key": "Private Key (PEM) eines dedizierten, nur-Forward-fähigen SSH-Keys auf der Bridge. Den kompletten Key inkl. BEGIN/END-Zeilen einfügen."
+          "ssh_private_key": "Private Key (PEM) eines dedizierten, nur-Forward-fähigen SSH-Keys auf der Bridge. Den kompletten Key inkl. BEGIN/END-Zeilen einfügen.",
+          "reset_ssh_host_key": "Der SSH-Host-Key der Bridge wird beim ersten Verbinden gepinnt; ein abweichender Key wird danach abgelehnt. Diese Option einmal aktivieren, nachdem die Bridge tatsächlich neu installiert oder der SSH-Host geändert wurde — dann wird beim nächsten Verbinden der neue Key gepinnt."
         }
       }
     }

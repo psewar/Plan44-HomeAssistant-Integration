@@ -167,8 +167,9 @@ class Plan44BridgeClient:
         except asyncssh.HostKeyNotVerifiable as err:
             raise Plan44BridgeHostKeyError(
                 "the bridge presented an unexpected SSH host key — refusing to "
-                "connect. If the bridge was reinstalled, clear the stored host "
-                "key by turning real-time mode off and on again in the options"
+                "connect. If the bridge was genuinely reinstalled (or you "
+                "changed the SSH host), tick 'Forget the pinned SSH host key' "
+                "in the plan44 options to re-pin it"
             ) from err
 
         async with conn:

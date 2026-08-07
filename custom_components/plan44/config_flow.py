@@ -35,8 +35,10 @@ from .const import (
     CONF_PORT,
     CONF_REALTIME_ENABLED,
     CONF_RECONNECT_INTERVAL,
+    CONF_RESET_SSH_HOST_KEY,
     CONF_REVERSE_ENABLED,
     CONF_SSH_HOST,
+    CONF_SSH_HOST_KEY,
     CONF_SSH_PORT,
     CONF_SSH_PRIVATE_KEY,
     CONF_SSH_USER,
@@ -214,6 +216,8 @@ def _options_schema(
                 CONF_BRIDGE_API_PORT,
                 default=current.get(CONF_BRIDGE_API_PORT, DEFAULT_BRIDGE_API_PORT),
             ): int,
+            # Transient: consumed (and reset) on save — see Plan44OptionsFlow.
+            vol.Optional(CONF_RESET_SSH_HOST_KEY, default=False): bool,
         }
     )
 
@@ -365,7 +369,16 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     user_input[CONF_PORT],
                     user_input[CONF_VDC_MODEL_NAME],
                 )
-            except Exception:
+            except Exception as err:  # noqa: BLE001
+                # Keep catching everything (an escaping error would show the
+                # user a traceback instead of the form) but make the real cause
+                # diagnosable — nothing else on this path logs.
+                _LOGGER.warning(
+                    "plan44 connection validation failed for %s:%s: %s",
+                    user_input[CONF_HOST],
+                    user_input[CONF_PORT],
+                    err,
+                )
                 errors["base"] = "cannot_connect"
             else:
                 host = user_input[CONF_HOST]
@@ -427,7 +440,16 @@ class Plan44ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     user_input[CONF_PORT],
                     user_input[CONF_VDC_MODEL_NAME],
                 )
-            except Exception:
+            except Exception as err:  # noqa: BLE001
+                # Keep catching everything (an escaping error would show the
+                # user a traceback instead of the form) but make the real cause
+                # diagnosable — nothing else on this path logs.
+                _LOGGER.warning(
+                    "plan44 connection validation failed for %s:%s: %s",
+                    user_input[CONF_HOST],
+                    user_input[CONF_PORT],
+                    err,
+                )
                 errors["base"] = "cannot_connect"
             else:
                 self.hass.config_entries.async_update_entry(
@@ -486,11 +508,29 @@ class Plan44OptionsFlow(config_entries.OptionsFlow):
         user_input: ConfigDict | None = None,
     ) -> Any:
         if user_input is not None:
+            options = dict(user_input)
+            # The pinned SSH host key lives in entry.data, so it can only be
+            # cleared from here — the checkbox itself is never persisted.
+            if options.pop(CONF_RESET_SSH_HOST_KEY, False):
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={
+                        k: v
+                        for k, v in self._config_entry.data.items()
+                        if k != CONF_SSH_HOST_KEY
+                    },
+                )
+                _LOGGER.info(
+                    "plan44: cleared the pinned SSH host key — it will be "
+                    "re-pinned on the next connection"
+                )
             # Reload so web-API config (and other options) take effect at once.
+            # Scheduled as a task so it runs *after* the options are persisted
+            # by async_create_entry below.
             self.hass.async_create_task(
                 self.hass.config_entries.async_reload(self._config_entry.entry_id)
             )
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data=options)
 
         current: ConfigDict = {
             **dict(self._config_entry.data),
@@ -718,12 +758,17 @@ class Plan44P44DeviceSubentryFlow(config_entries.ConfigSubentryFlow):
         url = default_web_url(merged.get(CONF_HOST))
         if not url:
             return None
+        # Mirror the canonical construction in __init__: dropping verify_ssl
+        # here would silently re-enable verification for a user who turned it
+        # off, and the device picker would then fail where setup succeeds.
+        verify_ssl = bool(merged.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL))
         return Plan44WebApi(
             self.hass,
             str(url),
             str(user),
             str(password),
-            pinned_cert=merged.get(CONF_WEB_CERT),
+            pinned_cert=merged.get(CONF_WEB_CERT) if verify_ssl else None,
+            verify_ssl=verify_ssl,
         )
 
     async def async_step_user(
