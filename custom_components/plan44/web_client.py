@@ -18,6 +18,7 @@ import json
 import logging
 import math
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,6 +38,15 @@ _MAX_PARSE_DEPTH = 64  # the real reply nests ~6 levels; 64 is generous
 
 DEFAULT_HTTPS_PORT = 443
 _CERT_FETCH_TIMEOUT = 15.0
+
+# The vdcd bridge periodically closes the connection from its side ("connection
+# closed by remote side", often in short bursts).  A request that lands in that
+# window comes back as a reset socket or an empty body -- a single blip would
+# otherwise abort whatever automation triggered it (e.g. the sunrise wake-up
+# light).  Retry a few times with a short, growing pause so an isolated drop
+# turns into a successful call instead of a hard failure.
+_REQUEST_ATTEMPTS = 3
+_REQUEST_RETRY_DELAY = 0.8  # seconds; multiplied by the attempt number
 
 # dS sensorType -> (HA device_class, state_class). Unmapped types → plain sensor.
 _SENSOR_TYPE: dict[int, tuple[str | None, str | None]] = {
@@ -273,6 +283,43 @@ class Plan44WebApi:
     # -- blocking implementation (runs in executor) ------------------------
 
     def _request_sync(self, query: dict[str, Any]) -> Any:
+        """POST a vdc query, retrying transient bridge drops (runs in executor).
+
+        A reset socket or empty body means the vdcd bridge closed the connection
+        mid-request; those are retried a few times.  A certificate problem, an
+        auth/HTTP error, or an over-sized response is not transient and fails
+        immediately.  ``time.sleep`` here only blocks the executor worker, not
+        the event loop.
+        """
+        last_err: Exception | None = None
+        for attempt in range(_REQUEST_ATTEMPTS):
+            try:
+                return self._request_once(query)
+            except ssl.SSLError as err:
+                # Certificate mismatch won't fix itself on retry.
+                raise Plan44WebApiError(self._cert_error_message(err)) from err
+            except (OSError, json.JSONDecodeError) as err:
+                last_err = err
+                if attempt + 1 < _REQUEST_ATTEMPTS:
+                    _LOGGER.debug(
+                        "vdc request transient failure (attempt %d/%d), retrying: %s",
+                        attempt + 1,
+                        _REQUEST_ATTEMPTS,
+                        err,
+                    )
+                    time.sleep(_REQUEST_RETRY_DELAY * (attempt + 1))
+        raise Plan44WebApiError(
+            f"vdc API request failed after {_REQUEST_ATTEMPTS} attempts: {last_err}"
+        ) from last_err
+
+    def _request_once(self, query: dict[str, Any]) -> Any:
+        """Perform one vdc request.
+
+        Transient failures (``OSError``, empty/undecodable body →
+        ``json.JSONDecodeError``) and ``ssl.SSLError`` propagate to
+        :meth:`_request_sync`, which decides whether to retry.  Non-transient
+        problems raise :class:`Plan44WebApiError` here so they are not retried.
+        """
         ctx = build_ssl_context(self._pinned_cert, verify_ssl=self._verify_ssl)
         pwmgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         pwmgr.add_password(None, self._base, self._user, self._password)
@@ -288,10 +335,6 @@ class Plan44WebApi:
         except urllib.error.HTTPError as err:
             if err.code != 404:
                 raise Plan44WebApiError(f"token request failed: {err}") from err
-        except ssl.SSLError as err:
-            raise Plan44WebApiError(self._cert_error_message(err)) from err
-        except OSError as err:
-            raise Plan44WebApiError(f"cannot reach {self._base}: {err}") from err
 
         endpoint = self._base + "/api/json/vdc"
         if token not in (None, True, False):
@@ -302,13 +345,8 @@ class Plan44WebApi:
             data=json.dumps(query).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        try:
-            with opener.open(req, timeout=20) as resp:
-                return json.loads(self._read_capped(resp))
-        except ssl.SSLError as err:
-            raise Plan44WebApiError(self._cert_error_message(err)) from err
-        except (OSError, json.JSONDecodeError) as err:
-            raise Plan44WebApiError(f"vdc API request failed: {err}") from err
+        with opener.open(req, timeout=20) as resp:
+            return json.loads(self._read_capped(resp))
 
     @staticmethod
     def _read_capped(resp: Any) -> str:
