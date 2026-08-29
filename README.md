@@ -185,3 +185,6 @@ On PowerShell:
 ```powershell
 ./precommit_check.ps1
 ```
+
+The bash script reproduces CI in full. The PowerShell one skips the HA
+component tests, which require Linux — run the bash script in WSL before pushing.

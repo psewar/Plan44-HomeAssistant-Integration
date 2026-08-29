@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings. With core.autocrlf=true (the Windows
+# default) a checkout rewrites them to CRLF, the shebang becomes `bash\r`,
+# and the script dies on WSL/Linux with:
+#     env: 'bash\r': No such file or directory
+# That silently disabled ./precommit_check.sh on every Windows clone.
+*.sh text eol=lf

@@ -33,7 +33,9 @@ removed on purpose — write for current Python and current Home Assistant.
   pytest -c pytest.ha.ini -q    # HA component tests (Linux only; on Windows use WSL)
   ```
 
-  `./precommit_check.sh` runs ruff + pyright + unit tests locally.
+  `./precommit_check.sh` runs the whole set locally. `./precommit_check.ps1` is
+  the Windows fallback and covers everything **except** the component tests,
+  which need Linux — run the bash script in WSL before pushing.
 
 ## Releasing
 
