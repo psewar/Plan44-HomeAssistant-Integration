@@ -124,5 +124,8 @@ The live/core tests were separated to keep protocol development simpler.
 
 Use the shell-specific helper at the repository root:
 
-- WSL / Linux / bash: `./precommit_check.sh`
-- PowerShell: `./precommit_check.ps1`
+- WSL / Linux / bash: `./precommit_check.sh` — runs the full CI set
+- PowerShell: `./precommit_check.ps1` — same, minus the Linux-only component tests
+
+Only the bash script reproduces CI completely. Windows-only verification will
+miss any breakage that shows up solely in `tests/components`.
