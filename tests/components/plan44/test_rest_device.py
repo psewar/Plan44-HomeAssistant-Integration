@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import MappingProxyType
 from typing import Any, cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
@@ -41,12 +41,17 @@ from custom_components.plan44.const import (
     DEFAULT_RECONNECT_INTERVAL,
     DEFAULT_REVERSE_ENABLED,
     DEFAULT_VDC_MODEL_NAME,
+    DEVICE_ACTIVE,
     DOMAIN,
     ISSUE_WEB_API_UNREACHABLE,
     KIND_LIGHT,
     SUBENTRY_TYPE_P44_DEVICE,
 )
-from custom_components.plan44.web_client import LightChannelState, Plan44WebApiError
+from custom_components.plan44.web_client import (
+    LightChannelState,
+    Plan44WebApi,
+    Plan44WebApiError,
+)
 
 _DSUID = "C153DD0BD8F15C0EC0731588056C0C7B00"
 _DATA = {
@@ -532,3 +537,102 @@ async def test_light_entity_linked_to_subentry(
     ]
     assert len(ents) == 1
     assert ents[0].config_subentry_id == subentry_id
+
+
+def _state(hass: HomeAssistant, entity_id: str) -> str:
+    """Entity state, failing loudly instead of raising AttributeError on None."""
+    st = hass.states.get(entity_id)
+    assert st is not None, f"{entity_id} existiert nicht"
+    return st.state
+
+
+async def test_states_query_asks_the_bridge_for_active(hass: HomeAssistant) -> None:
+    """Regression guard: the flag is useless if the poll never requests it."""
+    captured: dict[str, Any] = {}
+
+    async def fake_executor(func: Any, query: Any) -> Any:
+        captured["query"] = query
+        return {"result": {}}
+
+    fake_hass = cast(Any, MagicMock())
+    fake_hass.async_add_executor_job = fake_executor
+    api = Plan44WebApi(fake_hass, "https://bridge.invalid", "user", "pw")
+
+    await api.async_get_states(set())
+
+    device_query = captured["query"]["query"]["x-p44-vdcs"]["*"]["x-p44-devices"]["*"]
+    assert "active" in device_query
+
+
+async def test_inactive_device_becomes_unavailable(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A device the bridge reports as inactive must not look available.
+
+    Real-world case: an EnOcean sensor stops transmitting, the bridge keeps the
+    node but nulls every value. The entity used to sit on "unknown" forever
+    while still claiming to be available, so a dead device was invisible.
+    """
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    dc = entry.runtime_data.device_coordinator
+    assert dc is not None
+    by_uid = {e.unique_id: e for e in async_get_entity_registry(hass).entities.values()}
+    temp = by_uid[f"{entry.entry_id}_{next(iter(entry.subentries))}_temperature"]
+    assert float(_state(hass, temp.entity_id)) == 21.5
+
+    dc.async_set_updated_data(
+        {
+            _DSUID: {
+                "sensor": {"temperature": None},
+                "binary_sensor": {},
+                DEVICE_ACTIVE: False,
+            }
+        }
+    )
+    await hass.async_block_till_done()
+    assert _state(hass, temp.entity_id) == "unavailable"
+
+
+async def test_push_revives_an_inactive_device(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A push IS the device reporting, so it clears a stale active=False.
+
+    Otherwise the pushed value lands in an entity that is still unavailable and
+    stays invisible until the next poll.
+    """
+    entry = _make_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    dc = entry.runtime_data.device_coordinator
+    assert dc is not None
+    by_uid = {e.unique_id: e for e in async_get_entity_registry(hass).entities.values()}
+    temp = by_uid[f"{entry.entry_id}_{next(iter(entry.subentries))}_temperature"]
+
+    dc.async_set_updated_data(
+        {
+            _DSUID: {
+                "sensor": {"temperature": None},
+                "binary_sensor": {},
+                DEVICE_ACTIVE: False,
+            }
+        }
+    )
+    await hass.async_block_till_done()
+    assert _state(hass, temp.entity_id) == "unavailable"
+
+    dc.apply_push_update(_DSUID, "sensor", "temperature", 19.5)
+    await hass.async_block_till_done()
+    assert float(_state(hass, temp.entity_id)) == 19.5
