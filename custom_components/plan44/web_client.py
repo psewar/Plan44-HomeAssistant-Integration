@@ -27,6 +27,8 @@ from typing import Any, TypeGuard
 
 from homeassistant.core import HomeAssistant
 
+from .const import DEVICE_ACTIVE
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SENSOR = "sensor"
@@ -239,9 +241,7 @@ class Plan44WebApi:
         )
         return parse_devices(payload)
 
-    async def async_get_states(
-        self, dsuids: set[str]
-    ) -> dict[str, dict[str, dict[str, Any]]]:
+    async def async_get_states(self, dsuids: set[str]) -> dict[str, dict[str, Any]]:
         payload = await self._hass.async_add_executor_job(
             self._request_sync, _STATES_QUERY
         )
@@ -396,6 +396,7 @@ _STATES_QUERY: dict[str, Any] = {
                 "x-p44-devices": {
                     "*": {
                         "dSUID": None,
+                        "active": None,
                         "sensorStates": None,
                         "binaryInputStates": None,
                     }
@@ -531,10 +532,14 @@ def parse_devices(payload: Any) -> list[DiscoveredDevice]:
     return devices
 
 
-def parse_states(
-    payload: Any, dsuids: set[str]
-) -> dict[str, dict[str, dict[str, Any]]]:
-    result: dict[str, dict[str, dict[str, Any]]] = {}
+def parse_states(payload: Any, dsuids: set[str]) -> dict[str, dict[str, Any]]:
+    """Map dSUID -> {"sensor": {...}, "binary_sensor": {...}, "active": bool|None}.
+
+    Mirrors DeviceStates in device_coordinator: the per-platform channel maps
+    sit next to the bridge's own active flag, so an entity can tell "no value
+    yet" apart from "this device stopped reporting".
+    """
+    result: dict[str, dict[str, Any]] = {}
     for dev in _iter_devices(payload):
         dsuid = str(dev.get("dSUID"))
         if dsuid not in dsuids:
@@ -545,7 +550,15 @@ def parse_states(
         inputs: dict[str, Any] = {}
         for key, state in _items(dev.get("binaryInputStates")):
             inputs[key] = state.get("value")
-        result[dsuid] = {PLATFORM_SENSOR: sensors, PLATFORM_BINARY_SENSOR: inputs}
+        result[dsuid] = {
+            PLATFORM_SENSOR: sensors,
+            PLATFORM_BINARY_SENSOR: inputs,
+            # The bridge knows when a device has stopped reporting; without this
+            # the entities keep claiming to be available and just sit on
+            # "unknown" forever. A bridge that omits the field leaves it None,
+            # which is treated as "no opinion" (= available).
+            DEVICE_ACTIVE: dev.get("active"),
+        }
     return result
 
 

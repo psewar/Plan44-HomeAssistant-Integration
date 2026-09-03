@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from custom_components.plan44.const import DEVICE_ACTIVE
 from custom_components.plan44.web_client import (
     PLATFORM_BINARY_SENSOR,
     PLATFORM_SENSOR,
@@ -465,3 +466,58 @@ def test_parse_devices_survives_pathological_nesting() -> None:
         cur["n"] = nxt
         cur = nxt
     assert parse_devices(deep) == []  # guard stops early; no RecursionError
+
+
+def test_parse_states_carries_the_active_flag() -> None:
+    """The bridge's own verdict on whether a device still reports must survive.
+
+    Without it a silent EnOcean device keeps its node in the poll (so the
+    entity looks available) while every value is null — the entity then sits
+    on "unknown" forever with nothing to distinguish it from a fresh start.
+    """
+    payload = {
+        "result": {
+            "x-p44-vdcs": {
+                "v1": {
+                    "x-p44-devices": {
+                        "d1": {
+                            "dSUID": "DEAD",
+                            "active": False,
+                            "sensorStates": {"temperature": {"value": None}},
+                            "binaryInputStates": {},
+                        },
+                        "d2": {
+                            "dSUID": "ALIVE",
+                            "active": True,
+                            "sensorStates": {"temperature": {"value": 21.5}},
+                            "binaryInputStates": {},
+                        },
+                    }
+                }
+            }
+        }
+    }
+    states = parse_states(payload, {"DEAD", "ALIVE"})
+    assert states["DEAD"][DEVICE_ACTIVE] is False
+    assert states["ALIVE"][DEVICE_ACTIVE] is True
+    assert states["DEAD"]["sensor"]["temperature"] is None
+    assert states["ALIVE"]["sensor"]["temperature"] == 21.5
+
+
+def test_parse_states_without_active_field_has_no_opinion() -> None:
+    """A bridge that omits `active` must not make everything unavailable."""
+    payload = {
+        "result": {
+            "x-p44-vdcs": {
+                "v1": {
+                    "x-p44-devices": {
+                        "d1": {
+                            "dSUID": "OLD",
+                            "sensorStates": {"temperature": {"value": 20.0}},
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert parse_states(payload, {"OLD"})["OLD"][DEVICE_ACTIVE] is None

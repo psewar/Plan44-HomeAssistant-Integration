@@ -58,6 +58,10 @@ CONF_SSH_PRIVATE_KEY = "ssh_private_key"
 CONF_BRIDGE_API_PORT = "bridge_api_port"
 # The bridge's SSH host key in OpenSSH one-line form, pinned on first use so
 # later tunnels verify the peer instead of trusting any host key (MITM guard).
+# Key under which parse_states() records the bridge's own view of whether a
+# device is still reporting. None means the bridge did not say.
+DEVICE_ACTIVE = "active"
+
 CONF_SSH_HOST_KEY = "ssh_host_key"
 # Transient options flag: when set, the stored host key is forgotten so the
 # next connection re-pins (use after a legitimate bridge reinstall).

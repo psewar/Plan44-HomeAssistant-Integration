@@ -1,5 +1,30 @@
 # Release notes
 
+## 0.9.3 — 2026-09-04
+
+- **A device that stops reporting is now visible.** The bridge keeps a silent
+  device in its device list but nulls every value, so the entities used to sit
+  on "unknown" indefinitely while still reporting themselves as *available* —
+  a flat battery or an out-of-range radio sensor looked exactly like a device
+  that had simply not sent its first value yet. The poll now also asks the
+  bridge for its own `active` flag and marks the entities **unavailable** when
+  the bridge says the device has gone silent, so Home Assistant's usual
+  unavailability tooling (dashboards, `unavailable` triggers) catches it.
+  A real-time push counts as the device reporting and clears the flag
+  immediately, so a device that wakes up does not stay unavailable until the
+  next poll. A bridge that does not report `active` at all is treated as
+  before (available).
+
+## 0.9.2 — 2026-08-12
+
+- **Transient bridge blips no longer abort automations.** The vdcd bridge
+  periodically closes the connection from its side; a vdc request landing in
+  that window returned a reset socket or an empty body and failed hard, taking
+  down whatever triggered it (for example a sunrise wake-up-light automation
+  dying mid-run). Such requests are now retried up to three times with a short
+  growing pause, while certificate, auth and over-sized-response errors still
+  fail immediately.
+
 ## 0.9.1 — 2026-08-06
 
 Follow-up to the 0.9.0 review — completes two fixes that were incomplete and
