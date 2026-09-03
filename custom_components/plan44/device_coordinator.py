@@ -19,6 +19,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     ATTR_DSUID,
     ATTR_PLATFORM,
+    DEVICE_ACTIVE,
     DOMAIN,
     ISSUE_WEB_API_UNREACHABLE,
     KIND_LIGHT,
@@ -111,7 +112,12 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         current: DeviceStates = self.data or {}
         device = current.get(dsuid) or {}
         channels = device.get(group) or {}
-        if channels.get(key) == value:
+        # A push IS the device reporting, so it also clears a stale
+        # active=False from the last poll. Without this a device that wakes up
+        # would push values into an entity that is still marked unavailable,
+        # and the update would not be visible until the next poll.
+        was_inactive = device.get(DEVICE_ACTIVE) is False
+        if channels.get(key) == value and not was_inactive:
             return  # nothing changed — do not wake every listener
 
         # Copy-on-write along the touched path only: the untouched devices stay
@@ -119,7 +125,11 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         # in place, and a concurrent poll cannot observe a half-updated dict.
         self.data = {
             **current,
-            dsuid: {**device, group: {**channels, key: value}},
+            dsuid: {
+                **device,
+                group: {**channels, key: value},
+                DEVICE_ACTIVE: True,
+            },
         }
         # Deliberately NOT async_set_updated_data(): that would reschedule the
         # poll timer (a steady push stream would stop polling entirely) and set

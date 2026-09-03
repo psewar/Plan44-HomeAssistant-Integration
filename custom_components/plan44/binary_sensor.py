@@ -19,6 +19,7 @@ from .const import (
     ATTR_DSUID,
     ATTR_MODEL,
     ATTR_NAME,
+    DEVICE_ACTIVE,
     DOMAIN,
     Plan44ConfigEntry,
 )
@@ -138,7 +139,13 @@ class Plan44RestBinarySensor(BinarySensorEntity):
         )
         self._attr_is_on = bool(value) if value is not None else None
         self._attr_available = (
-            self._coordinator.last_update_success and device is not None
+            self._coordinator.last_update_success
+            and device is not None
+            # The bridge reports active=False once a device has gone silent
+            # past its alive interval. Without this the entity stays
+            # "available" and just shows an unknown value indefinitely, so a
+            # dead battery or an out-of-range radio device is invisible.
+            and device.get(DEVICE_ACTIVE) is not False
         )
         self.async_write_ha_state()
 
