@@ -1,3 +1,16 @@
+# Store every text file with LF in the repository — Git's canonical form.
+# Windows checkouts still get CRLF in the working tree (core.autocrlf), so
+# nothing changes for editors, but a file edited on Windows no longer flips
+# its entire contents in the diff.
+#
+# Before this, the index was split 44 CRLF / 41 LF: whoever touched a file
+# decided its endings, and a four-line change showed up as a 306-line diff
+# (v0.9.3 reported 3098 changed lines where only 241 were real).
+#
+# Applied once with `git add --renormalize .` — that commit is listed in
+# .git-blame-ignore-revs so `git blame` skips over it.
+* text=auto
+
 # Shell scripts must keep LF endings. With core.autocrlf=true (the Windows
 # default) a checkout rewrites them to CRLF, the shebang becomes `bash\r`,
 # and the script dies on WSL/Linux with:
