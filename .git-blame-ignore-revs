@@ -1,0 +1,8 @@
+# Commits that changed formatting only — `git blame` should look past them.
+#
+# GitHub reads this file automatically. Locally, enable it once per clone:
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore: normalize line endings to LF in the repository
+# (`* text=auto` + a one-off `git add --renormalize .`; 45 files, no content change)
+8f8a397b4559dc805bf54df4be3af5243708a05f
