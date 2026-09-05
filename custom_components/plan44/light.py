@@ -10,10 +10,12 @@ from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_HS_COLOR,
+    ATTR_TRANSITION,
     ATTR_XY_COLOR,
     LightEntity,
 )
-from homeassistant.components.light.const import ColorMode
+from homeassistant.components.light.const import ColorMode, LightEntityFeature
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -29,12 +31,15 @@ from .const import (
     ATTR_MODEL,
     ATTR_NAME,
     ATTR_PLATFORM,
+    ATTR_VENDOR,
+    DEVICE_ACTIVE,
     DOMAIN,
     KIND_LIGHT,
     SUBENTRY_TYPE_P44_DEVICE,
     Plan44ConfigEntry,
 )
 from .device_coordinator import Plan44DeviceCoordinator
+from .web_client import default_web_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,6 +52,11 @@ async def async_setup_entry(
     runtime = entry.runtime_data
     if runtime.device_coordinator is None:
         return
+
+    # Links the device page straight to the bridge's own web UI, which is where
+    # anything not exposed here (scenes, groups, dim curves) is configured.
+    merged = {**entry.data, **entry.options}
+    configuration_url = default_web_url(merged.get(CONF_HOST))
 
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != SUBENTRY_TYPE_P44_DEVICE:
@@ -67,11 +77,13 @@ async def async_setup_entry(
             dsuid=str(dsuid),
             device_name=str(data.get(ATTR_NAME) or dsuid),
             model=str(data.get(ATTR_MODEL) or "") or None,
+            vendor=str(data.get(ATTR_VENDOR) or "") or None,
             has_color_temp=bool(data.get(ATTR_HAS_COLOR_TEMP, False)),
             color_temp_min_mired=float(data.get(ATTR_COLOR_TEMP_MIN_MIRED, 100.0)),
             color_temp_max_mired=float(data.get(ATTR_COLOR_TEMP_MAX_MIRED, 1000.0)),
             has_hs_color=bool(data.get(ATTR_HAS_HS_COLOR, False)),
             has_xy_color=bool(data.get(ATTR_HAS_XY_COLOR, False)),
+            configuration_url=configuration_url,
         )
         async_add_entities([entity], config_subentry_id=subentry_id)
 
@@ -81,6 +93,10 @@ class Plan44RestLight(LightEntity):
 
     _attr_should_poll = False
     _attr_has_entity_name = True
+    # The bridge advertises `transt`/`variableRamp` for these devices and the
+    # hue vdc forwards the time to the lamp, so `transition:` in scripts and
+    # scenes actually fades instead of being silently dropped.
+    _attr_supported_features = LightEntityFeature.TRANSITION
     _attr_name = None  # device name is the entity name
 
     def __init__(
@@ -96,6 +112,8 @@ class Plan44RestLight(LightEntity):
         color_temp_max_mired: float,
         has_hs_color: bool,
         has_xy_color: bool,
+        vendor: str | None = None,
+        configuration_url: str | None = None,
     ) -> None:
         self._coordinator = coordinator
         self._dsuid = dsuid
@@ -107,7 +125,12 @@ class Plan44RestLight(LightEntity):
             identifiers={(DOMAIN, dsuid)},
             name=device_name,
             model=model,
-            manufacturer="plan44",
+            # The bridge knows who actually built the lamp (e.g. Signify for a
+            # Hue bulb); plan44 only stands in when it does not say. Subentries
+            # imported before 0.9.4 have no vendor stored and keep the old
+            # attribution until the device is re-imported.
+            manufacturer=vendor or "plan44",
+            configuration_url=configuration_url,
         )
 
         # HA validates that BRIGHTNESS is not combined with other color modes, and
@@ -161,7 +184,15 @@ class Plan44RestLight(LightEntity):
     def _handle_update(self) -> None:
         data = self._coordinator.data or {}
         ls = data.get(self._dsuid, {}).get("light")
-        self._attr_available = self._coordinator.last_update_success and ls is not None
+        device = (self._coordinator.data or {}).get(self._dsuid) or {}
+        self._attr_available = (
+            self._coordinator.last_update_success
+            and ls is not None
+            # A Hue lamp cut from power at the wall switch keeps its node and
+            # its last channel values on the bridge; only this flag gives it
+            # away. Without it the entity would keep reporting a stale state.
+            and device.get(DEVICE_ACTIVE) is not False
+        )
         if ls is not None:
             self._attr_is_on = ls.brightness > 0
             self._attr_brightness = round(ls.brightness / 100 * 255)
@@ -226,11 +257,30 @@ class Plan44RestLight(LightEntity):
                 self._attr_color_mode = ColorMode.HS
 
         if channels:
-            await self._coordinator.web_api.async_set_channels(self._dsuid, channels)
+            await self._coordinator.web_api.async_set_channels(
+                self._dsuid, channels, _transition(kwargs)
+            )
             await self._coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._coordinator.web_api.async_set_channels(
-            self._dsuid, {"brightness": 0.0}
+            self._dsuid, {"brightness": 0.0}, _transition(kwargs)
         )
         await self._coordinator.async_request_refresh()
+
+
+def _transition(kwargs: dict[str, Any]) -> float | None:
+    """Fade duration in seconds from a light service call, if one was given.
+
+    Home Assistant passes ATTR_TRANSITION in seconds and allows 0 to mean
+    "no fade", which is not the same as leaving it out (that keeps the
+    device's own default ramp), so 0 is preserved rather than treated as None.
+    """
+    value = kwargs.get(ATTR_TRANSITION)
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+    except TypeError, ValueError:
+        return None
+    return max(0.0, seconds)

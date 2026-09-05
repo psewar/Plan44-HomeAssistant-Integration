@@ -114,6 +114,9 @@ ATTR_PLATFORM = "platform"
 # p44_device subentry attributes for REST-discovered (dSUID-based) devices
 ATTR_DSUID = "dsuid"
 ATTR_MODEL = "model"
+# Real hardware vendor as reported by the bridge. Absent on subentries created
+# before 0.9.4, which then keep being attributed to plan44.
+ATTR_VENDOR = "vendor"
 ATTR_CHANNELS = "channels"  # list of serialized DiscoveredChannel dicts
 
 # p44_device subentry attributes for light (output) devices

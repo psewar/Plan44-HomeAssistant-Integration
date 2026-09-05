@@ -317,7 +317,7 @@ def test_parse_light_states_full() -> None:
     payload = _state_payload([_full_color_state()])
     states = parse_light_states(payload, {"LGT01"})
     assert set(states) == {"LGT01"}
-    ls = states["LGT01"]
+    ls = states["LGT01"]["light"]
     assert isinstance(ls, LightChannelState)
     assert ls.brightness == 80.0
     assert ls.color_temp_mired == 250.0
@@ -340,7 +340,7 @@ def test_parse_light_states_without_channel_descriptions() -> None:
         [{"dSUID": "LGT05", "channelStates": {"brightness": {"value": 60.0}}}]
     )
     states = parse_light_states(payload, {"LGT05"})
-    assert states["LGT05"].brightness == 60.0
+    assert states["LGT05"]["light"].brightness == 60.0
 
 
 def test_parse_light_states_missing_optional_channels() -> None:
@@ -353,7 +353,7 @@ def test_parse_light_states_missing_optional_channels() -> None:
         ]
     )
     states = parse_light_states(payload, {"LGT03"})
-    ls = states["LGT03"]
+    ls = states["LGT03"]["light"]
     assert ls.brightness == 50.0
     assert ls.color_temp_mired is None
     assert ls.hue is None
@@ -521,3 +521,63 @@ def test_parse_states_without_active_field_has_no_opinion() -> None:
         }
     }
     assert parse_states(payload, {"OLD"})["OLD"][DEVICE_ACTIVE] is None
+
+
+def test_light_states_carry_the_active_flag() -> None:
+    """A lamp that is unreachable keeps its channel values; only active tells."""
+    payload = _state_payload(
+        [
+            {
+                "dSUID": "LGT09",
+                "active": False,
+                "channelStates": {"brightness": {"value": 80.0}},
+            }
+        ]
+    )
+    states = parse_light_states(payload, {"LGT09"})
+    assert states["LGT09"][DEVICE_ACTIVE] is False
+    # the stale value is still parsed — the flag is what makes it stale
+    assert states["LGT09"]["light"].brightness == 80.0
+
+
+def test_light_states_without_active_field_has_no_opinion() -> None:
+    payload = _state_payload(
+        [{"dSUID": "LGT10", "channelStates": {"brightness": {"value": 10.0}}}]
+    )
+    assert parse_light_states(payload, {"LGT10"})["LGT10"][DEVICE_ACTIVE] is None
+
+
+def test_parse_light_devices_captures_the_real_vendor() -> None:
+    """The bridge knows the actual manufacturer; plan44 is only the fallback."""
+    payload = {
+        "result": {
+            "x-p44-vdcs": {
+                "v1": {
+                    "x-p44-devices": {
+                        "d1": {
+                            "dSUID": "LGT11",
+                            "name": "Hue",
+                            "model": "Extended color light",
+                            "vendorName": "Signify Netherlands B.V.",
+                            "outputSettings": {},
+                            "channelDescriptions": {
+                                "brightness": {"min": 0, "max": 100}
+                            },
+                        },
+                        "d2": {
+                            "dSUID": "LGT12",
+                            "name": "Nameless",
+                            "outputSettings": {},
+                            "channelDescriptions": {
+                                "brightness": {"min": 0, "max": 100}
+                            },
+                        },
+                    }
+                }
+            }
+        }
+    }
+    by_dsuid = {d.dsuid: d for d in parse_light_devices(payload)}
+    assert by_dsuid["LGT11"].vendor == "Signify Netherlands B.V."
+    # missing vendorName must not become the string "None"
+    assert by_dsuid["LGT12"].vendor == ""
