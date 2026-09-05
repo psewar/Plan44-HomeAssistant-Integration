@@ -421,14 +421,19 @@ _LIGHT_SUBENTRY_DATA = MappingProxyType(
     }
 )
 _LIGHT_STATES_MOCK = {
-    _LIGHT_DSUID: LightChannelState(
-        brightness=80.0,
-        color_temp_mired=250.0,
-        hue=120.0,
-        saturation=100.0,
-        x=0.172,
-        y=0.747,
-    )
+    # Same shape parse_light_states returns: the channel state next to the
+    # bridge's own active flag.
+    _LIGHT_DSUID: {
+        "light": LightChannelState(
+            brightness=80.0,
+            color_temp_mired=250.0,
+            hue=120.0,
+            saturation=100.0,
+            x=0.172,
+            y=0.747,
+        ),
+        DEVICE_ACTIVE: True,
+    }
 }
 
 
@@ -462,8 +467,9 @@ async def test_light_entity_created(
         for e in registry.entities.values()
         if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
-    assert len(entities) == 1
-    assert entities[0].domain == "light"
+    # One light plus its identify button.
+    assert {e.domain for e in entities} == {"light", "button"}
+    assert len(entities) == 2
 
 
 async def test_light_entity_state_reflects_poll(
@@ -481,7 +487,9 @@ async def test_light_entity_state_reflects_poll(
     light_entry = next(
         e
         for e in registry.entities.values()
-        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
+        if e.config_entry_id == entry.entry_id
+        and e.config_subentry_id is not None
+        and e.domain == "light"
     )
     state = hass.states.get(light_entry.entity_id)
     assert state is not None
@@ -510,7 +518,9 @@ async def test_light_entity_unavailable_without_data(
     light_entry = next(
         e
         for e in registry.entities.values()
-        if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
+        if e.config_entry_id == entry.entry_id
+        and e.config_subentry_id is not None
+        and e.domain == "light"
     )
     state = hass.states.get(light_entry.entity_id)
     assert state is not None
@@ -535,8 +545,9 @@ async def test_light_entity_linked_to_subentry(
         for e in registry.entities.values()
         if e.config_entry_id == entry.entry_id and e.config_subentry_id is not None
     ]
-    assert len(ents) == 1
-    assert ents[0].config_subentry_id == subentry_id
+    # Light and identify button both belong to the same subentry.
+    assert len(ents) == 2
+    assert {e.config_subentry_id for e in ents} == {subentry_id}
 
 
 def _state(hass: HomeAssistant, entity_id: str) -> str:
@@ -636,3 +647,136 @@ async def test_push_revives_an_inactive_device(
     dc.apply_push_update(_DSUID, "sensor", "temperature", 19.5)
     await hass.async_block_till_done()
     assert float(_state(hass, temp.entity_id)) == 19.5
+
+
+async def test_light_inactive_on_bridge_becomes_unavailable(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A lamp cut from power keeps its last channel values on the bridge.
+
+    Only the active flag gives it away, so without it the entity would go on
+    reporting a stale "on" forever.
+    """
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    light_entry = next(
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id
+        and e.config_subentry_id is not None
+        and e.domain == "light"
+    )
+    assert _state(hass, light_entry.entity_id) == "on"
+
+    dc = entry.runtime_data.device_coordinator
+    assert dc is not None
+    stale = dict(_LIGHT_STATES_MOCK[_LIGHT_DSUID])
+    stale[DEVICE_ACTIVE] = False
+    dc.async_set_updated_data({_LIGHT_DSUID: stale})
+    await hass.async_block_till_done()
+
+    assert _state(hass, light_entry.entity_id) == "unavailable"
+
+
+async def test_turn_on_with_transition_uses_the_fading_call(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """`transition:` must reach the bridge, not be silently dropped.
+
+    setProperty on channelStates has no transitionTime, so a fade has to go out
+    as the setOutputChannelValue notification instead.
+    """
+    entry = _make_light_entry(hass)
+    # The poll mock has to stay up for the whole test: turn_on triggers a
+    # refresh afterwards, which would otherwise hit the network.
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        registry = async_get_entity_registry(hass)
+        light_entry = next(
+            e
+            for e in registry.entities.values()
+            if e.config_entry_id == entry.entry_id
+            and e.config_subentry_id is not None
+            and e.domain == "light"
+        )
+
+        with patch(
+            "custom_components.plan44.web_client.Plan44WebApi.async_set_channels",
+            new=AsyncMock(),
+        ) as set_channels:
+            await hass.services.async_call(
+                "light",
+                "turn_on",
+                {
+                    "entity_id": light_entry.entity_id,
+                    "brightness": 128,
+                    "transition": 4,
+                },
+                blocking=True,
+            )
+            await hass.async_block_till_done()
+
+        assert set_channels.await_args is not None
+        assert set_channels.await_args.args[2] == 4.0
+
+        # ...and without `transition:` nothing is imposed on the device.
+        with patch(
+            "custom_components.plan44.web_client.Plan44WebApi.async_set_channels",
+            new=AsyncMock(),
+        ) as plain:
+            await hass.services.async_call(
+                "light",
+                "turn_on",
+                {"entity_id": light_entry.entity_id, "brightness": 200},
+                blocking=True,
+            )
+            await hass.async_block_till_done()
+        assert plain.await_args is not None
+        assert plain.await_args.args[2] is None
+
+
+async def test_identify_button_calls_the_bridge(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    entry = _make_light_entry(hass)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_light_states",
+        new=AsyncMock(return_value=_LIGHT_STATES_MOCK),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    button_entry = next(
+        e
+        for e in registry.entities.values()
+        if e.config_entry_id == entry.entry_id and e.domain == "button"
+    )
+
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_identify",
+        new=AsyncMock(),
+    ) as identify:
+        await hass.services.async_call(
+            "button",
+            "press",
+            {"entity_id": button_entry.entity_id},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+
+    identify.assert_awaited_once()
+    assert identify.await_args is not None
+    assert identify.await_args.args[0] == _LIGHT_DSUID

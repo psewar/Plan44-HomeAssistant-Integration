@@ -165,8 +165,10 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
                 states = await self._web_api.async_get_states(sensor_dsuids)
             if light_dsuids:
                 light_states = await self._web_api.async_get_light_states(light_dsuids)
-                for dsuid, ls in light_states.items():
-                    states.setdefault(dsuid, {})["light"] = ls
+                for dsuid, entry in light_states.items():
+                    # entry carries "light" plus the bridge's active flag, so a
+                    # device that is both a sensor and a light keeps both.
+                    states.setdefault(dsuid, {}).update(entry)
         except Plan44WebApiError as err:
             self._set_web_api_issue(active=True)
             raise UpdateFailed(str(err)) from err

@@ -117,6 +117,10 @@ class DiscoveredLightDevice:
     dsuid: str
     name: str
     model: str
+    # Real hardware vendor as the bridge reports it (e.g. "Signify Netherlands
+    # B.V." for a Hue lamp). Empty when the bridge does not say, in which case
+    # the device falls back to being attributed to plan44.
+    vendor: str
     has_color_temp: bool
     color_temp_min_mired: float
     color_temp_max_mired: float
@@ -255,30 +259,73 @@ class Plan44WebApi:
 
     async def async_get_light_states(
         self, dsuids: set[str]
-    ) -> dict[str, LightChannelState]:
+    ) -> dict[str, dict[str, Any]]:
         payload = await self._hass.async_add_executor_job(
             self._request_sync, _LIGHT_STATES_QUERY
         )
         return parse_light_states(payload, dsuids)
 
-    def _set_channels_sync(self, dsuid: str, channels: dict[str, float]) -> None:
-        """Set one or more channel values on a light device (run in executor)."""
-        self._request_sync(
-            {
-                "method": "setProperty",
-                "dSUID": dsuid,
-                "properties": {
-                    "channelStates": {
-                        ch: {"value": val} for ch, val in channels.items()
-                    }
-                },
-            }
+    def _set_channels_sync(
+        self, dsuid: str, channels: dict[str, float], transition: float | None
+    ) -> None:
+        """Set one or more channel values on a light device (run in executor).
+
+        Without a transition every channel goes in one setProperty request.
+        A fade needs the ``setOutputChannelValue`` notification instead, which
+        is the only call that carries ``transitionTime`` (vdcd device.cpp) and
+        which the hue vdc forwards to the lamp as the Hue API's own
+        ``transitiontime`` (huedevice.cpp) — setProperty has no such parameter
+        and would snap. That costs one request per channel, so it is only used
+        when a fade was actually asked for.
+        """
+        if transition is None:
+            self._request_sync(
+                {
+                    "method": "setProperty",
+                    "dSUID": dsuid,
+                    "properties": {
+                        "channelStates": {
+                            ch: {"value": val} for ch, val in channels.items()
+                        }
+                    },
+                }
+            )
+            return
+
+        items = list(channels.items())
+        for index, (channel, value) in enumerate(items):
+            self._request_sync(
+                {
+                    "notification": "setOutputChannelValue",
+                    "dSUID": dsuid,
+                    "channelId": channel,
+                    "value": value,
+                    "transitionTime": transition,
+                    # Apply once, after the last channel, so a colour +
+                    # brightness change fades as one move instead of several.
+                    "apply_now": index == len(items) - 1,
+                }
+            )
+
+    async def async_set_channels(
+        self,
+        dsuid: str,
+        channels: dict[str, float],
+        transition: float | None = None,
+    ) -> None:
+        await self._hass.async_add_executor_job(
+            self._set_channels_sync, dsuid, channels, transition
         )
 
-    async def async_set_channels(self, dsuid: str, channels: dict[str, float]) -> None:
-        await self._hass.async_add_executor_job(
-            self._set_channels_sync, dsuid, channels
-        )
+    def _identify_sync(self, dsuid: str, duration: float | None) -> None:
+        request: dict[str, Any] = {"notification": "identify", "dSUID": dsuid}
+        if duration is not None:
+            request["duration"] = duration
+        self._request_sync(request)
+
+    async def async_identify(self, dsuid: str, duration: float | None = None) -> None:
+        """Make the device draw attention to itself (blink), if it can."""
+        await self._hass.async_add_executor_job(self._identify_sync, dsuid, duration)
 
     # -- blocking implementation (runs in executor) ------------------------
 
@@ -418,6 +465,7 @@ _LIGHT_DESCRIPTIONS_QUERY: dict[str, Any] = {
                         "dSUID": None,
                         "name": None,
                         "model": None,
+                        "vendorName": None,
                         "outputSettings": None,
                         "channelDescriptions": None,
                     }
@@ -436,6 +484,7 @@ _LIGHT_STATES_QUERY: dict[str, Any] = {
                 "x-p44-devices": {
                     "*": {
                         "dSUID": None,
+                        "active": None,
                         "channelStates": None,
                     }
                 }
@@ -631,6 +680,7 @@ def parse_light_devices(payload: Any) -> list[DiscoveredLightDevice]:
                 dsuid=str(dev["dSUID"]),
                 name=str(dev.get("name") or dev["dSUID"]),
                 model=str(dev.get("model") or ""),
+                vendor=str(dev.get("vendorName") or ""),
                 has_color_temp=has_color_temp,
                 color_temp_min_mired=ct_min,
                 color_temp_max_mired=ct_max,
@@ -641,8 +691,15 @@ def parse_light_devices(payload: Any) -> list[DiscoveredLightDevice]:
     return devices
 
 
-def parse_light_states(payload: Any, dsuids: set[str]) -> dict[str, LightChannelState]:
-    result: dict[str, LightChannelState] = {}
+def parse_light_states(payload: Any, dsuids: set[str]) -> dict[str, dict[str, Any]]:
+    """Map dSUID -> {"light": LightChannelState, "active": bool | None}.
+
+    Mirrors parse_states so a light can tell "no value yet" apart from "the
+    bridge says this device stopped reporting" — a Hue lamp cut from power at
+    the wall switch keeps its node and its last channel values, and only the
+    active flag gives it away.
+    """
+    result: dict[str, dict[str, Any]] = {}
     for dev in _iter_light_nodes(payload):
         dsuid = str(dev.get("dSUID"))
         if dsuid not in dsuids:
@@ -653,7 +710,7 @@ def parse_light_states(payload: Any, dsuids: set[str]) -> dict[str, LightChannel
         ls = parse_push_light_channel_states(channel_states)
         if ls is None:
             continue
-        result[dsuid] = ls
+        result[dsuid] = {"light": ls, DEVICE_ACTIVE: dev.get("active")}
     return result
 
 
