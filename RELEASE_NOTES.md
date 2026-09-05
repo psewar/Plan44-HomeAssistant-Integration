@@ -1,5 +1,29 @@
 # Release notes
 
+## 0.9.4 — 2026-09-06
+
+More of what the bridge already knows about an imported light.
+
+- **A lamp the bridge reports as inactive is now unavailable.** 0.9.3 did this
+  for sensors but missed lights: a Hue lamp cut from power at the wall switch
+  keeps its node *and its last channel values* on the bridge, so the entity
+  went on reporting a stale "on" indefinitely. The light poll now asks for the
+  same `active` flag the sensors use.
+- **`transition:` works.** The bridge advertises a variable ramp for these
+  devices and the hue vdc forwards the time to the lamp, but the call the
+  integration used (`setProperty` on `channelStates`) has no way to carry it,
+  so every fade in a script or scene was silently dropped and the light
+  snapped. Fades now go out as the `setOutputChannelValue` notification, which
+  does carry `transitionTime`; without a `transition:` nothing is imposed on
+  the device and the single-request path is kept.
+- **New "Identify" button** per imported light — makes the lamp blink, which
+  is the quickest way to tell several identical ones apart.
+- **The device page links to the bridge**, so scenes, groups and dim curves
+  are one click away.
+- **Devices show their real manufacturer** where the bridge names one (a Hue
+  lamp now says Signify rather than plan44). Devices imported before this
+  release keep the old attribution until they are re-imported.
+
 ## 0.9.3 — 2026-09-04
 
 - **A device that stops reporting is now visible.** The bridge keeps a silent

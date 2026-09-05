@@ -55,7 +55,7 @@ from .plan44_client import Plan44Client
 from .store import Plan44Store
 from .web_client import Plan44WebApi, default_web_url, fetch_server_cert_pem
 
-PLATFORMS = ["binary_sensor", "light", "sensor"]
+PLATFORMS = ["binary_sensor", "button", "light", "sensor"]
 
 _LOGGER = logging.getLogger(__name__)
 
