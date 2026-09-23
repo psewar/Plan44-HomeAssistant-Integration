@@ -49,11 +49,34 @@ _INBOUND_MESSAGE_TYPES = (MSG_SENSOR, MSG_INPUT)
 
 _LOGGER = logging.getLogger(__name__)
 
+
 MAX_RECONNECT_DELAY_SECONDS = 300
 # Reconnect attempts logged at warning level before dropping to debug.
 NOISY_RECONNECT_ATTEMPTS = 10
+# A connection must stay up this long to prove the bridge is actually serving.
+# A bridge that is booting accepts the socket and drops it milliseconds later,
+# which is a *successful* connect as far as the reconnect loop is concerned --
+# so without this the loop would reconnect at full speed for as long as the
+# boot takes. Mirrors HEALTHY_SESSION_SECONDS in bridge_client.
+HEALTHY_SESSION_SECONDS = 60
 # Cap on distinct bridge-supplied tags we remember for discovery notifications.
 MAX_DISCOVERED_TAGS = 50
+
+
+def reconnect_throttle(
+    lived_seconds: float | None, base_delay: int, last_delay: int
+) -> int:
+    """Seconds to wait before reconnecting, given how long the last session lived.
+
+    A session that stayed up is a healthy link that simply dropped: reconnect at
+    once. A session that died immediately means the bridge is not ready, so back
+    off -- otherwise connect/EOF/connect spins as fast as the event loop allows.
+    """
+    if lived_seconds is None or lived_seconds >= HEALTHY_SESSION_SECONDS:
+        return 0
+    if last_delay <= 0:
+        return base_delay
+    return min(last_delay * 2, MAX_RECONNECT_DELAY_SECONDS)
 
 
 class Plan44Coordinator:
@@ -92,6 +115,11 @@ class Plan44Coordinator:
         # Connection state, surfaced through the bridge diagnostic entities.
         self.connected_since: float | None = None
         self.reconnect_count = 0
+        # Loop-clock timestamp of the last successful connect, and the backoff
+        # carried across reconnect loops so a bridge that keeps dropping the
+        # connection right after accepting it is retried ever more slowly.
+        self._last_connect_at: float | None = None
+        self._short_session_delay = 0
 
         reconnect_value = entry.options.get(
             CONF_RECONNECT_INTERVAL,
@@ -171,7 +199,23 @@ class Plan44Coordinator:
         update, network outage).  A bounded number of attempts used to leave
         the integration permanently dead until Home Assistant was restarted.
         """
-        delay = max(1, self._reconnect_interval)
+        base_delay = max(1, self._reconnect_interval)
+        last_connect_at = self._last_connect_at
+        lived = (
+            None if last_connect_at is None else self.hass.loop.time() - last_connect_at
+        )
+        throttle = reconnect_throttle(lived, base_delay, self._short_session_delay)
+        self._short_session_delay = throttle
+        if throttle:
+            _LOGGER.info(
+                "plan44 dropped the connection after %.1fs; "
+                "waiting %ss before reconnecting",
+                lived or 0.0,
+                throttle,
+            )
+            await asyncio.sleep(throttle)
+
+        delay = base_delay
         attempt = 0
         while True:
             attempt += 1
@@ -202,6 +246,7 @@ class Plan44Coordinator:
             # link is still up, so it must not drive the reconnect loop (that
             # would spin forever and inflate the reconnect_count sensor).
             self._set_connected(True)
+            self._last_connect_at = self.hass.loop.time()
             self.reconnect_count += 1
             _LOGGER.info("Reconnected to plan44 on attempt %s", attempt)
             if self.auto_republish:
