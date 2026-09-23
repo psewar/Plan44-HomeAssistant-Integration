@@ -263,13 +263,8 @@ async def _async_setup_bridge_client(
 
     @callback
     def _on_status(connected: bool) -> None:
-        # Surface the real-time link state so a permanently dead tunnel is
-        # visible instead of silently degrading to poll-only.
-        _LOGGER.log(
-            logging.INFO if connected else logging.WARNING,
-            "plan44 real-time bridge link %s",
-            "up" if connected else "down",
-        )
+        # The client logs the link state itself: only it knows whether a drop
+        # was recovered on the next attempt or is a permanently dead tunnel.
         async_dispatcher_send(hass, signal_bridge_connection(entry.entry_id))
 
     @callback
