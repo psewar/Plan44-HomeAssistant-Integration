@@ -28,6 +28,11 @@ RECONNECT_MAX_SECONDS = 120
 # long; otherwise a tunnel that opens and instantly EOFs would spin at the
 # minimum delay forever.
 HEALTHY_SESSION_SECONDS = 60
+# A tunnel that drops and is back on the next attempt is normal operation (the
+# bridge restarts, the SSH path blips) and must not raise an alarm.  Only once
+# this many consecutive attempts have failed to restore the link is the outage
+# worth a warning, so a self-healed blip stays at INFO.
+LINK_DOWN_WARNING_ATTEMPTS = 2
 # The bridge-API stream is mostly idle between value changes; a firewall port
 # forward or proxy can drop an idle TCP session. SSH-level keepalives keep the
 # connection (and the NAT state along the way) alive and detect a dead peer.
@@ -41,6 +46,20 @@ HostKeyCallback = Callable[[str], None]
 
 class Plan44BridgeHostKeyError(Exception):
     """The bridge presented a host key that does not match the pinned one."""
+
+
+def link_down_log_level(failed_attempts: int, *, already_warned: bool) -> int:
+    """Log level for a link that is still down after ``failed_attempts`` tries.
+
+    Keeping a permanently dead tunnel visible is the point of logging the link
+    state at all, but a drop that heals itself is not a fault: it is only worth
+    a warning once a reconnect has actually failed, and only once per outage.
+    """
+    if already_warned:
+        return logging.DEBUG
+    if failed_attempts >= LINK_DOWN_WARNING_ATTEMPTS:
+        return logging.WARNING
+    return logging.INFO
 
 
 def pinned_known_hosts(host_key: str) -> bytes:
@@ -79,6 +98,8 @@ class Plan44BridgeClient:
         self._closing = False
         self._connected = False
         self._session_started = False
+        self._failed_attempts = 0
+        self._link_warned = False
 
     @property
     def connected(self) -> bool:
@@ -132,6 +153,17 @@ class Plan44BridgeClient:
                 self._set_status(connected=False)
             if self._closing:
                 break
+            self._failed_attempts += 1
+            _LOGGER.log(
+                link_down_log_level(
+                    self._failed_attempts, already_warned=self._link_warned
+                ),
+                "plan44 real-time bridge link down (failed attempts: %s)",
+                self._failed_attempts,
+            )
+            self._link_warned = (
+                self._link_warned or self._failed_attempts >= LINK_DOWN_WARNING_ATTEMPTS
+            )
             # Only a session that actually stayed up proves the config is good.
             # Resetting on any session would spin at the minimum delay forever
             # when the tunnel opens and immediately EOFs.
@@ -178,6 +210,13 @@ class Plan44BridgeClient:
             reader, writer = await conn.open_connection("127.0.0.1", self._bridge_port)
             self._session_started = True
             self._set_status(connected=True)
+            if self._failed_attempts:
+                _LOGGER.info(
+                    "plan44 real-time bridge link restored after %s failed attempt(s)",
+                    self._failed_attempts,
+                )
+            self._failed_attempts = 0
+            self._link_warned = False
             _LOGGER.info(
                 "plan44 bridge API connected (ssh %s@%s -> 127.0.0.1:%s)",
                 self._ssh_user,

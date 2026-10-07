@@ -156,7 +156,9 @@ class Plan44Client:
             while True:
                 raw = await reader.readline()
                 if not raw:
-                    _LOGGER.warning("plan44 connection closed by remote side")
+                    # Detecting a dropped socket is not a fault: the reconnect
+                    # loop in the coordinator warns if the reconnect fails.
+                    _LOGGER.info("plan44 connection closed by remote side")
                     break
 
                 line = raw.decode("utf-8", errors="ignore").strip()
@@ -178,11 +180,11 @@ class Plan44Client:
         except asyncio.CancelledError:
             raise
         except ConnectionResetError as err:
-            _LOGGER.warning("plan44 connection reset by peer: %s", err)
+            _LOGGER.info("plan44 connection reset by peer: %s", err)
         except BrokenPipeError as err:
-            _LOGGER.warning("plan44 broken pipe: %s", err)
+            _LOGGER.info("plan44 broken pipe: %s", err)
         except OSError as err:
-            _LOGGER.warning("plan44 socket error: %s", err)
+            _LOGGER.info("plan44 socket error: %s", err)
         except Exception:
             _LOGGER.exception("Unexpected error in plan44 reader loop")
         finally:

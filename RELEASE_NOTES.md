@@ -1,5 +1,36 @@
 # Release notes
 
+## 0.9.5 — 2026-10-07
+
+Calmer when the bridge restarts, and readable sensor names.
+
+The bridge's `vdcd` currently restarts on its own about once a day
+([plan44/vdcd#18](https://github.com/plan44/vdcd/issues/18)), with roughly seven
+seconds of downtime each time. Two of these changes are about handling that
+gracefully.
+
+- **A disconnect that heals itself no longer logs a warning.** Each of those
+  seven-second restarts produced two WARNINGs (`real-time bridge link down`,
+  `connection closed by remote side`) that a log review cannot tell apart from
+  a real outage. A drop now logs at INFO and escalates to WARNING only once a
+  reconnect has actually failed — once per outage, then quiet so a long outage
+  does not flood the log. A real outage is still a warning, about five seconds
+  later.
+- **Reconnects are throttled when the bridge drops the connection instantly.**
+  A bridge that is still booting accepts the TCP connection and drops it
+  milliseconds later. The backoff only applied when connecting *failed*, so a
+  connect that succeeded and died at once reset it: one reboot caused 4133
+  reconnects in 338 seconds. A session now has to stay up a moment to count as
+  healthy; the same outage replays as 7 attempts. Recovery from a normal
+  disconnect is unchanged.
+- **Imported sensors get readable names.** The bridge names a channel after its
+  full description, range and unit included, so a sensor showed up as
+  "Temperature, -40.0..62.4 °C". The range is now dropped from the displayed
+  name. Entity IDs that are already registered **do not change**, so
+  automations keep working; only the friendly name becomes readable, and new
+  imports get clean entity IDs. Where two channels of one device differ only in
+  their range, both keep their full names so they stay distinguishable.
+
 ## 0.9.4 — 2026-09-06
 
 More of what the bridge already knows about an imported light.
