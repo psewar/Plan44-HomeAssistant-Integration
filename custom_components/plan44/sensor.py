@@ -30,6 +30,7 @@ from .coordinator import Plan44Coordinator
 from .device_coordinator import Plan44DeviceCoordinator
 from .device_templates import PLATFORM_SENSOR, ChannelTemplate
 from .inbound import resolve_device, setup_p44_device_entities
+from .plan44_core.naming import display_names
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,16 +70,20 @@ def _build_rest_sensors(
     dsuid = str(data[ATTR_DSUID])
     device_name = str(data.get(ATTR_NAME) or dsuid)
     model = str(data.get(ATTR_MODEL) or "") or None
-    out: list[SensorEntity] = []
-    for ch in data.get(ATTR_CHANNELS, []):
-        if not isinstance(ch, Mapping) or ch.get("platform") != PLATFORM_SENSOR:
-            continue
-        out.append(
-            Plan44RestSensor(
-                coordinator, entry_id, subentry_id, dsuid, device_name, model, ch
-            )
+    channels: list[Mapping[str, Any]] = [
+        ch
+        for ch in data.get(ATTR_CHANNELS, [])
+        if isinstance(ch, Mapping) and ch.get("platform") == PLATFORM_SENSOR
+    ]
+    # Cleaned per device, not per channel: two channels that differ only in
+    # their value range must not end up with the same display name.
+    names = display_names([str(ch.get("name") or ch["key"]) for ch in channels])
+    return [
+        Plan44RestSensor(
+            coordinator, entry_id, subentry_id, dsuid, device_name, model, ch, name
         )
-    return out
+        for ch, name in zip(channels, names, strict=True)
+    ]
 
 
 def _build_push_sensors(
@@ -116,11 +121,12 @@ class Plan44RestSensor(SensorEntity):
         device_name: str,
         model: str | None,
         channel: Mapping[str, Any],
+        name: str,
     ) -> None:
         self._coordinator = coordinator
         self._dsuid = dsuid
         self._key = str(channel["key"])
-        self._attr_name = channel.get("name")
+        self._attr_name = name
         self._attr_native_unit_of_measurement = channel.get("unit")
         self._attr_unique_id = f"{entry_id}_{subentry_id}_{self._key}"
         self._attr_native_value = None

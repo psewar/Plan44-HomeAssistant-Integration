@@ -95,7 +95,9 @@ _STATES = {
 }
 
 
-def _make_entry(hass: HomeAssistant) -> MockConfigEntry:
+def _make_entry(
+    hass: HomeAssistant, channels: list[dict[str, Any]] | None = None
+) -> MockConfigEntry:
     entry = MockConfigEntry(domain=DOMAIN, title="plan44", data=_DATA, options={})
     entry.add_to_hass(hass)
     subentry = ConfigSubentry(
@@ -106,7 +108,7 @@ def _make_entry(hass: HomeAssistant) -> MockConfigEntry:
                 ATTR_DSUID: _DSUID,
                 ATTR_NAME: "Valve",
                 ATTR_MODEL: "Micropelt (A5-20-06)",
-                ATTR_CHANNELS: _CHANNELS,
+                ATTR_CHANNELS: _CHANNELS if channels is None else channels,
             }
         ),
         unique_id=None,
@@ -216,6 +218,79 @@ async def test_web_api_url_derived_from_host(
     web_api = entry.runtime_data.web_api
     assert web_api is not None
     assert web_api.base_url == "https://127.0.0.1"
+
+
+# The name exactly as vdcd reports it for a D2-14-41 multisensor.
+_RANGED_CHANNELS = [
+    {
+        "key": "temperature",
+        "name": "Temperature, -40.0..62.4 °C",
+        "platform": "sensor",
+        "unit": "°C",
+        "device_class": "temperature",
+        "state_class": "measurement",
+    },
+]
+
+
+async def test_sensor_name_drops_the_bridges_value_range(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A new install gets a readable name and entity ID, not the raw range."""
+    entry = _make_entry(hass, _RANGED_CHANNELS)
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    temp = next(
+        e
+        for e in async_get_entity_registry(hass).entities.values()
+        if e.unique_id.endswith("_temperature")
+    )
+    assert temp.entity_id == "sensor.valve_temperature"
+    state = hass.states.get(temp.entity_id)
+    assert state is not None
+    assert state.attributes.get("friendly_name") == "Valve Temperature"
+    # The subentry still holds what the bridge said; only the display changed.
+    stored = entry.subentries[next(iter(entry.subentries))].data[ATTR_CHANNELS]
+    assert stored[0]["name"] == "Temperature, -40.0..62.4 °C"
+
+
+async def test_existing_entity_id_survives_the_cleaner_name(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """Upgrading must not rename entity IDs that automations already use.
+
+    Before the clean-up, the entity ID was derived from the raw name. The
+    registry keeps it; only the friendly name becomes readable.
+    """
+    entry = _make_entry(hass, _RANGED_CHANNELS)
+    subentry_id = next(iter(entry.subentries))
+    registry = async_get_entity_registry(hass)
+    old = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{entry.entry_id}_{subentry_id}_temperature",
+        config_entry=entry,
+        config_subentry_id=subentry_id,
+        suggested_object_id="valve_temperature_40_0_62_4_degc",
+    )
+    assert old.entity_id == "sensor.valve_temperature_40_0_62_4_degc"
+
+    with patch(
+        "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+        new=AsyncMock(return_value=_STATES),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.valve_temperature_40_0_62_4_degc")
+    assert state is not None, "the registered entity ID must be kept"
+    assert state.attributes.get("friendly_name") == "Valve Temperature"
+    assert hass.states.get("sensor.valve_temperature") is None  # no duplicate
 
 
 async def test_rest_device_unavailable_without_web_api_data(
