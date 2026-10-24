@@ -42,6 +42,10 @@ CONF_WEB_CERT = "web_cert_pem"
 # When False the TLS certificate is not verified and TOFU pinning is skipped.
 # Intended as a temporary workaround for CA-chain issues.
 CONF_VERIFY_SSL = "verify_ssl"
+# Diagnostic entities for the radio link (signal strength, repeaters, last
+# radio packet, active flag, operating state) of every wireless device the
+# bridge tracks packets for — imported or not. Opt-in; needs the web API.
+CONF_RADIO_DIAGNOSTICS = "radio_diagnostics"
 
 # Real-time import via the vdcd *bridge API* (port 4444, localhost-only on the
 # bridge) reached through an SSH direct-tcpip tunnel. Pushes every changed
@@ -61,6 +65,9 @@ CONF_BRIDGE_API_PORT = "bridge_api_port"
 # Key under which parse_states() records the bridge's own view of whether a
 # device is still reporting. None means the bridge did not say.
 DEVICE_ACTIVE = "active"
+# Key under which the device coordinator keeps a device's RadioState (only
+# with radio diagnostics on).
+DEVICE_RADIO = "radio"
 
 CONF_SSH_HOST_KEY = "ssh_host_key"
 # Transient options flag: when set, the stored host key is forgotten so the
@@ -76,6 +83,7 @@ DEFAULT_BLOCKLIST_INTEGRATIONS = "digitalstrom,digitalstromsmart,ha_digitalstrom
 DEFAULT_BLOCKLIST_ENTITY_ID_PREFIXES = ""
 DEFAULT_WEB_POLL_INTERVAL = 30
 DEFAULT_VERIFY_SSL = True
+DEFAULT_RADIO_DIAGNOSTICS = False
 DEFAULT_REALTIME_ENABLED = False
 DEFAULT_SSH_PORT = 22
 DEFAULT_BRIDGE_API_PORT = 4444

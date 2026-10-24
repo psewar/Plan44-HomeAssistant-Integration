@@ -59,6 +59,10 @@ To import physical devices and read their values, the integration needs the brid
 
 There is no separate URL field: the web UI is reached at `https://<host>` using the host you already entered during setup. The bridge's self-signed TLS certificate is accepted automatically. Changing any option reloads the entry so the new settings take effect immediately. Without the web credentials configured, the device picker falls back to a manual entry form.
 
+### Radio diagnostics (wireless devices)
+
+- **Radio diagnostics for wireless devices** (off by default) — adds diagnostic entities to every device the bridge receives radio packets from (EnOcean), imported or not: last radio packet, signal strength, repeater count, active flag and operating state. Needs the web API credentials above. See [Radio diagnostics](RADIO_DIAGNOSTICS.md) for what each entity means and an alert example.
+
 ## Multiple config entries
 
 If you configure more than one `plan44` entry, the service calls can include `entry_id` to target a specific config entry.

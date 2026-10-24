@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -31,6 +32,8 @@ from .device_coordinator import Plan44DeviceCoordinator
 from .device_templates import PLATFORM_SENSOR, ChannelTemplate
 from .inbound import resolve_device, setup_p44_device_entities
 from .plan44_core.naming import display_names
+from .radio import Plan44RadioEntity, setup_radio_entities
+from .web_client import RadioState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +59,7 @@ async def async_setup_entry(
         _build_rest_sensors,
         _build_push_sensors,
     )
+    setup_radio_entities(entry, async_add_entities, _build_radio_sensors)
     async_add_entities(
         [Plan44BridgeConnectedSince(entry), Plan44BridgeReconnects(entry)]
     )
@@ -104,6 +108,26 @@ def _build_push_sensors(
         for ch in channels
         if ch.platform == PLATFORM_SENSOR
     ]
+
+
+def _build_radio_sensors(
+    coordinator: Plan44DeviceCoordinator,
+    entry_id: str,
+    radio: RadioState,
+    device_info: DeviceInfo,
+) -> list[SensorEntity]:
+    sensors: list[SensorEntity] = [
+        Plan44LastRadioPacketSensor(coordinator, entry_id, radio, device_info),
+        Plan44SignalStrengthSensor(coordinator, entry_id, radio, device_info),
+        Plan44OpStateSensor(coordinator, entry_id, radio, device_info),
+    ]
+    # Only where the radio has repeaters at all; elsewhere it would sit on
+    # "unknown" for good and look like a missing value.
+    if radio.has_repeater_count:
+        sensors.append(
+            Plan44RepeaterCountSensor(coordinator, entry_id, radio, device_info)
+        )
+    return sensors
 
 
 class Plan44RestSensor(SensorEntity):
@@ -237,6 +261,54 @@ class Plan44InboundSensorEntity(SensorEntity):
     @cached_property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return {"p44_tag": self._tag, "p44_index": self._channel.index}
+
+
+class Plan44LastRadioPacketSensor(Plan44RadioEntity, SensorEntity):
+    """When the bridge last received a packet from the device.
+
+    Unknown while the bridge has received none since it (vdcd) started — the
+    state of a device that went silent before the bridge restarted.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "last_radio_packet"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        self._attr_native_value = radio.last_packet
+
+
+class Plan44SignalStrengthSensor(Plan44RadioEntity, SensorEntity):
+    """Signal strength of the last packet the bridge received."""
+
+    _attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+    _attr_translation_key = "rssi"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        self._attr_native_value = radio.rssi
+
+
+class Plan44RepeaterCountSensor(Plan44RadioEntity, SensorEntity):
+    """Repeaters the last packet passed through; 0 means received directly."""
+
+    _attr_translation_key = "repeater_count"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        self._attr_native_value = radio.repeater_count
+
+
+class Plan44OpStateSensor(Plan44RadioEntity, SensorEntity):
+    """The bridge's own one-line summary, e.g. "-68dBm1 Rep., " or "timeout, unseen"."""
+
+    _attr_translation_key = "op_state"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        self._attr_native_value = radio.op_state or None
 
 
 class Plan44BridgeConnectedSince(Plan44BridgeEntity, SensorEntity):

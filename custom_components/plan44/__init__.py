@@ -22,6 +22,7 @@ from .const import (
     CONF_BRIDGE_API_PORT,
     CONF_HOST,
     CONF_PORT,
+    CONF_RADIO_DIAGNOSTICS,
     CONF_REALTIME_ENABLED,
     CONF_REVERSE_ENABLED,
     CONF_SSH_HOST,
@@ -36,6 +37,7 @@ from .const import (
     CONF_WEB_POLL_INTERVAL,
     CONF_WEB_USER,
     DEFAULT_BRIDGE_API_PORT,
+    DEFAULT_RADIO_DIAGNOSTICS,
     DEFAULT_SSH_PORT,
     DEFAULT_VERIFY_SSL,
     DEFAULT_WEB_POLL_INTERVAL,
@@ -220,7 +222,12 @@ async def _async_setup_web_api(
         verify_ssl=verify_ssl,
     )
     interval = int(merged.get(CONF_WEB_POLL_INTERVAL, DEFAULT_WEB_POLL_INTERVAL))
-    device_coordinator = Plan44DeviceCoordinator(hass, entry, web_api, interval)
+    radio_diagnostics = bool(
+        merged.get(CONF_RADIO_DIAGNOSTICS, DEFAULT_RADIO_DIAGNOSTICS)
+    )
+    device_coordinator = Plan44DeviceCoordinator(
+        hass, entry, web_api, interval, radio_diagnostics
+    )
     try:
         await device_coordinator.async_config_entry_first_refresh()
     except ConfigEntryNotReady:

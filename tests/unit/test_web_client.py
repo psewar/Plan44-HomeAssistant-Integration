@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ssl
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -13,6 +15,7 @@ from custom_components.plan44.web_client import (
     PLATFORM_SENSOR,
     DiscoveredLightDevice,
     LightChannelState,
+    RadioState,
     build_ssl_context,
     default_web_url,
     fetch_server_cert_pem,
@@ -20,7 +23,9 @@ from custom_components.plan44.web_client import (
     parse_light_devices,
     parse_light_states,
     parse_push_light_channel_states,
+    parse_radio_states,
     parse_states,
+    steady_last_packet,
 )
 
 # Throwaway self-signed certificate, only used to prove the pinned TLS context
@@ -581,3 +586,182 @@ def test_parse_light_devices_captures_the_real_vendor() -> None:
     assert by_dsuid["LGT11"].vendor == "Signify Netherlands B.V."
     # missing vendorName must not become the string "None"
     assert by_dsuid["LGT12"].vendor == ""
+
+
+# ---------------------------------------------------------------------------
+# parse_radio_states / steady_last_packet
+# ---------------------------------------------------------------------------
+
+# Device nodes shaped exactly as a P44-DSB-E2 (vdcd 2.8.4.6) answered the radio
+# query, only names and dSUIDs replaced: a valve heard via one repeater, one the
+# bridge has timed out and not heard since it started, a rocker that simply was
+# not pressed, and a Hue lamp, which has no radio properties at all.
+_RADIO_NOW = datetime(2026, 10, 24, 23, 32, 20, 476407, tzinfo=UTC)
+_VALVE: dict[str, Any] = {
+    "dSUID": "VALVE-A52006",
+    "name": "MVA009 Living Room",
+    "model": "Micropelt EnOcean heating valve actuator (A5-20-06)",
+    "active": True,
+    "x-p44-packetAge": 147.074148,
+    "x-p44-rssi": -71,
+    "x-p44-repeaterCount": 1,
+    "x-p44-opStateText": "-71dBm1 Rep., ",
+}
+_TIMED_OUT_VALVE: dict[str, Any] = {
+    "dSUID": "VALVE-A52001",
+    "name": "MVA004 Office",
+    "model": "Micropelt EnOcean heating valve actuator (A5-20-01)",
+    "active": False,
+    "x-p44-packetAge": None,
+    "x-p44-rssi": None,
+    "x-p44-repeaterCount": None,
+    "x-p44-opStateText": "timeout, unseen",
+}
+_ROCKER: dict[str, Any] = {
+    "dSUID": "ROCKER-F602",
+    "name": "Hall rocker left",
+    "model": "EnOcean rocker switch (F6-02-FF)",
+    "active": True,
+    "x-p44-packetAge": None,
+    "x-p44-rssi": None,
+    "x-p44-repeaterCount": None,
+    "x-p44-opStateText": "unseen",
+}
+_HUE_LAMP: dict[str, Any] = {
+    "dSUID": "HUE-LAMP",
+    "name": "Sofa lamp",
+    "model": "Extended color light: 4080248P9",
+    "active": True,
+    "x-p44-opStateText": "",
+}
+
+
+def test_parse_radio_states_picks_devices_that_report_a_packet_age() -> None:
+    """Only radio devices carry the property; the lamp must not get radio entities."""
+    payload = _state_payload([_VALVE, _TIMED_OUT_VALVE, _ROCKER, _HUE_LAMP])
+    radio = parse_radio_states(payload, _RADIO_NOW)
+    assert set(radio) == {
+        str(_VALVE["dSUID"]),
+        str(_TIMED_OUT_VALVE["dSUID"]),
+        str(_ROCKER["dSUID"]),
+    }
+
+
+def test_parse_radio_states_turns_the_packet_age_into_a_timestamp() -> None:
+    valve = parse_radio_states(_state_payload([_VALVE]), _RADIO_NOW)[
+        str(_VALVE["dSUID"])
+    ]
+    assert valve == RadioState(
+        dsuid=str(_VALVE["dSUID"]),
+        name="MVA009 Living Room",
+        model="Micropelt EnOcean heating valve actuator (A5-20-06)",
+        active=True,
+        # 23:32:20.48 minus 147.07 s, cut to the second
+        last_packet=datetime(2026, 10, 24, 23, 29, 53, tzinfo=UTC),
+        rssi=-71,
+        repeater_count=1,
+        has_repeater_count=True,
+        op_state="-71dBm1 Rep., ",
+    )
+
+
+def test_parse_radio_states_unseen_device_has_no_timestamp() -> None:
+    """No packet since the bridge started: no time can be claimed for it."""
+    silent = parse_radio_states(_state_payload([_TIMED_OUT_VALVE]), _RADIO_NOW)[
+        str(_TIMED_OUT_VALVE["dSUID"])
+    ]
+    assert silent.last_packet is None
+    assert silent.rssi is None
+    assert silent.repeater_count is None
+    assert silent.has_repeater_count is True  # EnOcean has repeaters, none seen
+    assert silent.active is False
+    assert silent.op_state == "timeout, unseen"
+
+
+def test_parse_radio_states_radio_without_repeaters() -> None:
+    """ELDAT/ZF report age and RSSI but have no repeater property."""
+    node = {
+        "dSUID": "ELDAT1",
+        "name": "Eldat",
+        "active": True,
+        "x-p44-packetAge": 30.0,
+        "x-p44-rssi": -80,
+    }
+    eldat = parse_radio_states(_state_payload([node]), _RADIO_NOW)["ELDAT1"]
+    assert eldat.has_repeater_count is False
+    assert eldat.repeater_count is None
+    assert eldat.rssi == -80
+    assert eldat.op_state is None
+    assert eldat.model == ""
+
+
+@pytest.mark.parametrize(
+    "field, bad",
+    [
+        ("x-p44-packetAge", -5.0),
+        ("x-p44-packetAge", float("nan")),
+        ("x-p44-packetAge", "147"),
+        ("x-p44-rssi", float("inf")),
+        ("x-p44-repeaterCount", "1"),
+        ("active", "yes"),
+        ("x-p44-opStateText", 42),
+    ],
+)
+def test_parse_radio_states_rejects_implausible_values(field: str, bad: Any) -> None:
+    """A malformed value becomes "unknown", not a crash or a made-up reading."""
+    node = {**_VALVE, field: bad}
+    valve = parse_radio_states(_state_payload([node]), _RADIO_NOW)[str(_VALVE["dSUID"])]
+    parsed = {
+        "x-p44-packetAge": valve.last_packet,
+        "x-p44-rssi": valve.rssi,
+        "x-p44-repeaterCount": valve.repeater_count,
+        "active": valve.active,
+        "x-p44-opStateText": valve.op_state,
+    }
+    assert parsed[field] is None
+
+
+def _radio_at(last_packet: datetime | None) -> RadioState:
+    return RadioState(
+        dsuid="D1",
+        name="Valve",
+        model="",
+        active=True,
+        last_packet=last_packet,
+        rssi=-70,
+        repeater_count=0,
+        has_repeater_count=True,
+        op_state="-70dBm",
+    )
+
+
+_PACKET = datetime(2026, 10, 24, 23, 29, 53, tzinfo=UTC)
+
+
+def test_steady_last_packet_keeps_the_timestamp_of_the_same_packet() -> None:
+    """Poll latency must not move the timestamp (a state change every poll)."""
+    jittered = _radio_at(_PACKET + timedelta(seconds=1))
+    assert steady_last_packet(_radio_at(_PACKET), jittered).last_packet == _PACKET
+    earlier = _radio_at(_PACKET - timedelta(seconds=2))
+    assert steady_last_packet(_radio_at(_PACKET), earlier).last_packet == _PACKET
+
+
+def test_steady_last_packet_takes_a_new_packet() -> None:
+    newer = _radio_at(_PACKET + timedelta(minutes=2))
+    assert steady_last_packet(_radio_at(_PACKET), newer) is newer
+
+
+def test_steady_last_packet_follows_the_bridge_to_unseen() -> None:
+    """After a bridge restart nothing is known any more; keep no stale time."""
+    unseen = _radio_at(None)
+    assert steady_last_packet(_radio_at(_PACKET), unseen).last_packet is None
+
+
+def test_steady_last_packet_first_poll_and_other_fields() -> None:
+    first = _radio_at(_PACKET)
+    assert steady_last_packet(None, first) is first
+    # Only the timestamp is held back; the rest of the poll passes through.
+    stronger = replace(_radio_at(_PACKET + timedelta(seconds=1)), rssi=-60)
+    steady = steady_last_packet(first, stronger)
+    assert steady.last_packet == _PACKET
+    assert steady.rssi == -60

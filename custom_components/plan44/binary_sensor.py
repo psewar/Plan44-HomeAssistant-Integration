@@ -27,6 +27,8 @@ from .coordinator import Plan44Coordinator
 from .device_coordinator import Plan44DeviceCoordinator
 from .device_templates import PLATFORM_BINARY_SENSOR, ChannelTemplate
 from .inbound import resolve_device, setup_p44_device_entities
+from .radio import Plan44RadioEntity, setup_radio_entities
+from .web_client import RadioState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ async def async_setup_entry(
         _build_rest_inputs,
         _build_push_inputs,
     )
+    setup_radio_entities(entry, async_add_entities, _build_radio_inputs)
     async_add_entities([Plan44BridgeConnectivity(entry)])
 
 
@@ -89,6 +92,15 @@ def _build_push_inputs(
         for ch in channels
         if ch.platform == PLATFORM_BINARY_SENSOR
     ]
+
+
+def _build_radio_inputs(
+    coordinator: Plan44DeviceCoordinator,
+    entry_id: str,
+    radio: RadioState,
+    device_info: DeviceInfo,
+) -> list[BinarySensorEntity]:
+    return [Plan44RadioActiveBinarySensor(coordinator, entry_id, radio, device_info)]
 
 
 class Plan44RestBinarySensor(BinarySensorEntity):
@@ -210,6 +222,21 @@ class Plan44InboundBinarySensorEntity(BinarySensorEntity):
     @cached_property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         return {"p44_tag": self._tag, "p44_index": self._channel.index}
+
+
+class Plan44RadioActiveBinarySensor(Plan44RadioEntity, BinarySensorEntity):
+    """The bridge's own verdict whether the device is still present.
+
+    Not the same as "still transmitting": vdcd only clears it for profiles with
+    an alive check, and an A5-20-06 valve (e.g. Micropelt MVA009) has none — it
+    stays active however long it is silent. The last radio packet tells.
+    """
+
+    _attr_translation_key = "active"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        self._attr_is_on = radio.active
 
 
 class Plan44BridgeConnectivity(Plan44BridgeEntity, BinarySensorEntity):
