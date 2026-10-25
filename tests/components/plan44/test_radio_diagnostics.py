@@ -63,7 +63,13 @@ _DEAD_VALVE = "VALVE-A52001"
 _SMOKE = "SMOKE-D21430"
 _PACKET = datetime(2026, 10, 24, 23, 29, 53, tzinfo=UTC)
 
-_SENSOR_KEYS = ("last_radio_packet", "rssi", "repeater_count", "op_state")
+_SENSOR_KEYS = (
+    "last_radio_packet",
+    "packet_interval",
+    "rssi",
+    "repeater_count",
+    "op_state",
+)
 
 
 def _radio(
@@ -369,6 +375,41 @@ async def test_poll_jitter_does_not_move_the_last_packet(
         await hass.async_block_till_done()
 
     assert _state(hass, entity_id) == "2026-10-24T23:31:53+00:00"
+
+
+async def test_packet_interval_shows_the_minutes_between_packets(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """An hourly valve reads ~60 min; unknown until two packets were seen."""
+    entry = _make_entry(hass)
+    polls = [
+        {_VALVE: _radio(_VALVE, "MVA009 Living Room", last_packet=_PACKET + delta)}
+        for delta in (timedelta(0), timedelta(seconds=1), timedelta(minutes=60))
+    ]
+    with _radio_patch(side_effect=polls):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        entity_id = _entity_id(
+            hass, "sensor", f"{entry.entry_id}_{_VALVE}_packet_interval"
+        )
+        assert _state(hass, entity_id) == "unknown"
+
+        dc = entry.runtime_data.device_coordinator
+        assert dc is not None
+        await dc.async_refresh()  # same packet again: still no interval
+        await hass.async_block_till_done()
+        assert _state(hass, entity_id) == "unknown"
+
+        await dc.async_refresh()  # the next packet, an hour later
+        await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert float(state.state) == 60.0
+    assert state.attributes.get("unit_of_measurement") == "min"
+    assert state.attributes.get("device_class") == "duration"
+    reg = async_get_entity_registry(hass).async_get(entity_id)
+    assert reg is not None and reg.entity_category is EntityCategory.DIAGNOSTIC
 
 
 async def test_radio_entities_unavailable_while_the_bridge_is_unreachable(

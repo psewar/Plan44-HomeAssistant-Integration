@@ -32,6 +32,7 @@ from .web_client import (
     Plan44WebApiError,
     RadioState,
     steady_last_packet,
+    with_packet_interval,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -194,9 +195,12 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         self._set_web_api_issue(active=False)
         previous = self.data or {}
         for dsuid, radio in radio_states.items():
+            before = previous.get(dsuid, {}).get(DEVICE_RADIO)
+            if not isinstance(before, RadioState):
+                before = None
             # Next to (not inside) the channel maps, and for imported and
             # non-imported devices alike: the diagnostics exist for both.
-            states.setdefault(dsuid, {})[DEVICE_RADIO] = steady_last_packet(
-                previous.get(dsuid, {}).get(DEVICE_RADIO), radio
+            states.setdefault(dsuid, {})[DEVICE_RADIO] = with_packet_interval(
+                before, steady_last_packet(before, radio)
             )
         return states

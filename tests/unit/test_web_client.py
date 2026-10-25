@@ -26,6 +26,7 @@ from custom_components.plan44.web_client import (
     parse_radio_states,
     parse_states,
     steady_last_packet,
+    with_packet_interval,
 )
 
 # Throwaway self-signed certificate, only used to prove the pinned TLS context
@@ -824,3 +825,44 @@ def test_steady_last_packet_first_poll_and_other_fields() -> None:
     steady = steady_last_packet(first, stronger)
     assert steady.last_packet == _PACKET
     assert steady.rssi == -60
+
+
+def _poll(previous: RadioState | None, current: RadioState) -> RadioState:
+    """What the coordinator does with each poll: steady first, then measure."""
+    return with_packet_interval(previous, steady_last_packet(previous, current))
+
+
+def test_packet_interval_is_the_time_to_the_new_packet() -> None:
+    """An hourly valve (lost downlink) must read about 60 min, a healthy one 10."""
+    first = _poll(None, _radio_at(_PACKET))
+    assert first.packet_interval is None  # one packet is no interval yet
+    second = _poll(first, _radio_at(_PACKET + timedelta(minutes=60)))
+    assert second.packet_interval == timedelta(minutes=60)
+    third = _poll(second, _radio_at(_PACKET + timedelta(minutes=70)))
+    assert third.packet_interval == timedelta(minutes=10)
+
+
+def test_packet_interval_stays_until_the_next_packet() -> None:
+    """Polls without a new packet - incl. jitter - keep the measured interval."""
+    known = replace(_radio_at(_PACKET), packet_interval=timedelta(minutes=10))
+    same = _poll(known, _radio_at(_PACKET + timedelta(seconds=1)))
+    assert same.last_packet == _PACKET
+    assert same.packet_interval == timedelta(minutes=10)
+
+
+def test_packet_interval_needs_two_known_packets() -> None:
+    """Across "unseen" (bridge restart) nothing is measured; the last value stays."""
+    known = replace(_radio_at(_PACKET), packet_interval=timedelta(minutes=10))
+    unseen = _poll(known, _radio_at(None))
+    assert unseen.packet_interval == timedelta(minutes=10)
+    back = _poll(unseen, _radio_at(_PACKET + timedelta(hours=5)))
+    assert back.packet_interval == timedelta(minutes=10)  # no pair seen yet
+    next_one = _poll(back, _radio_at(_PACKET + timedelta(hours=5, minutes=2)))
+    assert next_one.packet_interval == timedelta(minutes=2)
+
+
+def test_packet_interval_ignores_time_running_backwards() -> None:
+    """A clock step back in Home Assistant must not produce a negative interval."""
+    known = replace(_radio_at(_PACKET), packet_interval=timedelta(minutes=10))
+    earlier = _poll(known, _radio_at(_PACKET - timedelta(minutes=5)))
+    assert earlier.packet_interval == timedelta(minutes=10)

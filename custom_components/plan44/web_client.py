@@ -167,6 +167,9 @@ class RadioState:
     # input that was not refreshed within its alive interval.
     low_battery: bool | None = None
     has_low_battery: bool = False  # whether the device has such an input
+    # Time between the last two packets seen on consecutive polls (see
+    # with_packet_interval). None until two packets have been seen.
+    packet_interval: timedelta | None = None
 
 
 def default_web_url(host: str | None) -> str | None:
@@ -903,3 +906,29 @@ def steady_last_packet(previous: RadioState | None, current: RadioState) -> Radi
     ):
         return current
     return replace(current, last_packet=previous.last_packet)
+
+
+def with_packet_interval(
+    previous: RadioState | None, current: RadioState
+) -> RadioState:
+    """Return *current* with the time since the packet before its last one.
+
+    A Micropelt valve that no longer hears the bridge falls back to one packet
+    an hour (instead of every 2-10 min) while the bridge keeps it active; this
+    interval is what gives it away. It is measured between polls: a new packet
+    after a known one sets it, and it stays until the next new packet. Packets
+    closer together than the poll interval count as one. *current* must
+    already be steadied (steady_last_packet), or every poll would look like a
+    new packet.
+    """
+    if previous is None:
+        return current
+    if (
+        current.last_packet is not None
+        and previous.last_packet is not None
+        and current.last_packet > previous.last_packet
+    ):
+        return replace(
+            current, packet_interval=current.last_packet - previous.last_packet
+        )
+    return replace(current, packet_interval=previous.packet_interval)

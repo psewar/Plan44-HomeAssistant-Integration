@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+from homeassistant.const import SIGNAL_STRENGTH_DECIBELS_MILLIWATT, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -119,6 +119,7 @@ def _build_radio_sensors(
 ) -> list[SensorEntity]:
     sensors: list[SensorEntity] = [
         Plan44LastRadioPacketSensor(coordinator, entry_id, radio, device_info),
+        Plan44PacketIntervalSensor(coordinator, entry_id, radio, device_info),
         Plan44SignalStrengthSensor(coordinator, entry_id, radio, device_info),
         Plan44OpStateSensor(coordinator, entry_id, radio, device_info),
     ]
@@ -277,6 +278,30 @@ class Plan44LastRadioPacketSensor(Plan44RadioEntity, SensorEntity):
     @callback
     def _update_from_radio(self, radio: RadioState) -> None:
         self._attr_native_value = radio.last_packet
+
+
+class Plan44PacketIntervalSensor(Plan44RadioEntity, SensorEntity):
+    """Time between the last two packets the bridge received (minutes).
+
+    A Micropelt valve reports every 2-10 min. One that no longer hears the
+    bridge falls back to once an hour; the bridge still receives it and keeps
+    it active, so this interval is what gives it away. Unknown until two
+    packets have been seen, which after a restart re-arms a numeric_state
+    trigger on it by itself.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_display_precision = 1
+    _attr_translation_key = "packet_interval"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        interval = radio.packet_interval
+        self._attr_native_value = (
+            round(interval.total_seconds() / 60, 1) if interval is not None else None
+        )
 
 
 class Plan44SignalStrengthSensor(Plan44RadioEntity, SensorEntity):
