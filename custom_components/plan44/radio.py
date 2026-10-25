@@ -2,13 +2,13 @@
 
 With the radio diagnostics option on, every device the bridge tracks radio
 packets for (EnOcean, and likewise ELDAT and ZF) gets a few diagnostic
-entities: signal strength, repeaters, last radio packet, the bridge's active
-flag, its operating-state text and, where the device has one, its low-battery
-input (an energy-harvesting valve's energy store).  They do not depend on the
-device being imported: a heating valve that Home Assistant otherwise only sees
-through digitalSTROM still shows when it last transmitted.  That is the one
-thing the digitalSTROM side cannot tell — it keeps mirroring the zone
-temperature while the valve itself has gone silent.
+entities: signal strength, repeaters, last radio packet, packet interval, the
+bridge's active flag, its operating-state text and, where the device has one,
+its low-battery input (an energy-harvesting valve's energy store).  They do not
+depend on the device being imported: a heating valve that Home Assistant
+otherwise only sees through digitalSTROM still shows when it last transmitted.
+That is the one thing the digitalSTROM side cannot tell — it keeps mirroring the
+zone temperature while the valve itself has gone silent.
 
 An imported device gets them on its own device and sub-entry; every other one
 gets a diagnostics-only device.  The platforms only supply their entity

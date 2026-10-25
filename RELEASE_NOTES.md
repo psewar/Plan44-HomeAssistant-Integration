@@ -23,6 +23,13 @@ had last heard from the valve. Home Assistant had no way to show it.
   energy-harvesting valve this is its energy store: Micropelt valves report a
   draining store at about 25 % left, well before they park at 50 % open and stop
   transmitting.
+- **Packet interval**, the time between the last two packets. An A5-20-06
+  valve that no longer hears the bridge regulates on its own and falls back to
+  one packet an hour, while the bridge keeps it active. On one installation two
+  valves had been doing that for at least four weeks. Healthy valves report
+  every 2–10 minutes, so a `numeric_state` trigger above 45 minutes held for
+  3 hours finds such a valve. The interval starts out unknown after a restart,
+  which re-arms that trigger by itself.
 - **Last radio packet** is *unknown* while the bridge has received no packet
   since it started. Otherwise it changes only when a new packet arrives, so it
   does not fill the recorder or re-arm a `time` trigger on every poll.
@@ -32,9 +39,8 @@ had last heard from the valve. Home Assistant had no way to show it.
   2 h 40 min. Alert on *Last radio packet* for valves.
   [Radio diagnostics](docs/RADIO_DIAGNOSTICS.md) has a template-free alert
   example and explains the 8-hour wake cycle the valves use in summer. It also
-  says what the diagnostics cannot show: a valve that no longer hears the bridge
-  keeps transmitting hourly and regulates on its own, and vdcd has no property
-  for that error bit.
+  says what stays invisible: an MVA004 that no longer hears the bridge keeps
+  its 10-minute interval and has no error bit.
 
 No existing entity changes.
 

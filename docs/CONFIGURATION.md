@@ -61,7 +61,7 @@ There is no separate URL field: the web UI is reached at `https://<host>` using 
 
 ### Radio diagnostics (wireless devices)
 
-- **Radio diagnostics for wireless devices** (off by default) — adds diagnostic entities to every device the bridge receives radio packets from (EnOcean), imported or not: last radio packet, signal strength, repeater count, active flag, operating state and low battery (an energy-harvesting valve's energy store). Needs the web API credentials above. See [Radio diagnostics](RADIO_DIAGNOSTICS.md) for what each entity means and an alert example.
+- **Radio diagnostics for wireless devices** (off by default) — adds diagnostic entities to every device the bridge receives radio packets from (EnOcean), imported or not: last radio packet, packet interval, signal strength, repeater count, active flag, operating state and low battery (an energy-harvesting valve's energy store). Needs the web API credentials above. See [Radio diagnostics](RADIO_DIAGNOSTICS.md) for what each entity means and an alert example.
 
 ## Multiple config entries
 
