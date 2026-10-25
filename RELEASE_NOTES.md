@@ -1,5 +1,43 @@
 # Release notes
 
+## 0.10.0 — 2026-10-25
+
+See when a wireless device stopped transmitting.
+
+An EnOcean heating valve went silent for at least four weeks and nobody
+noticed. digitalSTROM kept mirroring the zone temperature, the bridge kept
+calling the valve active, and the valve fell back to regulating on its own
+sensor, so the radiator heated unregulated. The bridge knew all along when it
+had last heard from the valve. Home Assistant had no way to show it.
+
+- **New option "Radio diagnostics for wireless devices"** (off by default).
+  Every device the bridge tracks radio packets for (all EnOcean devices,
+  imported or not) gets these diagnostic entities: *Last radio packet*
+  (timestamp), *Signal strength* (dBm), *Repeater count*, *Active* and the
+  bridge's *Operating state* text. An imported device keeps them on its own
+  device; any other one gets a diagnostics-only device. Devices learned into the
+  bridge later appear with the next poll. The option costs one extra web-API
+  request per poll.
+- **Low battery** as well, for devices that have such an input and are not
+  imported (an imported device already shows it as a channel). For an
+  energy-harvesting valve this is its energy store: Micropelt valves report a
+  draining store at about 25 % left, well before they park at 50 % open and stop
+  transmitting.
+- **Last radio packet** is *unknown* while the bridge has received no packet
+  since it started. Otherwise it changes only when a new packet arrives, so it
+  does not fill the recorder or re-arm a `time` trigger on every poll.
+- **"Active" is not enough for every valve.** vdcd has no alive check for
+  A5-20-06 valves (e.g. Micropelt MVA009/MVA005) and keeps them active however
+  long they are silent. A5-20-01 valves (MVA004) go inactive after about
+  2 h 40 min. Alert on *Last radio packet* for valves.
+  [Radio diagnostics](docs/RADIO_DIAGNOSTICS.md) has a template-free alert
+  example and explains the 8-hour wake cycle the valves use in summer. It also
+  says what the diagnostics cannot show: a valve that no longer hears the bridge
+  keeps transmitting hourly and regulates on its own, and vdcd has no property
+  for that error bit.
+
+No existing entity changes.
+
 ## 0.9.5 — 2026-10-07
 
 Calmer when the bridge restarts, and readable sensor names.

@@ -40,6 +40,10 @@ integration. A typical setup:
   polling the bridge web vdc JSON API at the configured interval
 - built-in EnOcean device profiles plus a manual fallback; see
   [Importing plan44 devices](docs/DEVICE_IMPORT.md)
+- optional radio diagnostics for every wireless device, imported or not: last
+  radio packet, signal strength, repeater count, active flag, operating state
+  and low battery (an energy-harvesting valve's energy store); see
+  [Radio diagnostics](docs/RADIO_DIAGNOSTICS.md)
 
 ## Live-verified device matrix
 
@@ -94,6 +98,7 @@ See [docs/HOME_ASSISTANT_YAML.md](docs/HOME_ASSISTANT_YAML.md) for examples.
 
 - [Configuration and setup](docs/CONFIGURATION.md)
 - [Importing plan44 devices into Home Assistant](docs/DEVICE_IMPORT.md)
+- [Radio diagnostics for wireless devices](docs/RADIO_DIAGNOSTICS.md)
 - [Creating and managing virtual devices](docs/VIRTUAL_DEVICES.md)
 - [Home Assistant YAML structure for virtual devices](docs/HOME_ASSISTANT_YAML.md)
 - [Testing and live verification](docs/TESTING.md)
