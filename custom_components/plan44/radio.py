@@ -3,11 +3,12 @@
 With the radio diagnostics option on, every device the bridge tracks radio
 packets for (EnOcean, and likewise ELDAT and ZF) gets a few diagnostic
 entities: signal strength, repeaters, last radio packet, the bridge's active
-flag and its operating-state text.  They do not depend on the device being
-imported: a heating valve that Home Assistant otherwise only sees through
-digitalSTROM still shows when it last transmitted.  That is the one thing the
-digitalSTROM side cannot tell — it keeps mirroring the zone temperature while
-the valve itself has gone silent.
+flag, its operating-state text and, where the device has one, its low-battery
+input (an energy-harvesting valve's energy store).  They do not depend on the
+device being imported: a heating valve that Home Assistant otherwise only sees
+through digitalSTROM still shows when it last transmitted.  That is the one
+thing the digitalSTROM side cannot tell — it keeps mirroring the zone
+temperature while the valve itself has gone silent.
 
 An imported device gets them on its own device and sub-entry; every other one
 gets a diagnostics-only device.  The platforms only supply their entity
@@ -84,7 +85,7 @@ def setup_radio_entities[EntityT: Entity](
     entry: Plan44ConfigEntry,
     add_entities: AddConfigEntryEntitiesCallback,
     build: Callable[
-        [Plan44DeviceCoordinator, str, RadioState, DeviceInfo], list[EntityT]
+        [Plan44DeviceCoordinator, str, RadioState, DeviceInfo, bool], list[EntityT]
     ],
 ) -> None:
     """Add the radio diagnostics of every radio device, now and as more appear.
@@ -92,6 +93,8 @@ def setup_radio_entities[EntityT: Entity](
     A device learned into the bridge later shows up with the next poll, no
     reload needed.  Each device goes to its import sub-entry when it has one,
     so it does not also land among "devices that don't belong to a sub-entry".
+    ``build`` is told whether the device is imported, so it can leave out what
+    the import already shows as a channel.
     """
     coordinator = entry.runtime_data.device_coordinator
     if coordinator is None or not coordinator.radio_diagnostics:
@@ -112,6 +115,7 @@ def setup_radio_entities[EntityT: Entity](
                 entry.entry_id,
                 radio,
                 radio_device_info(radio, subentry[1] if subentry else None),
+                subentry is not None,
             )
             add_entities(entities, config_subentry_id=subentry[0] if subentry else None)
 

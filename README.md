@@ -41,8 +41,9 @@ integration. A typical setup:
 - built-in EnOcean device profiles plus a manual fallback; see
   [Importing plan44 devices](docs/DEVICE_IMPORT.md)
 - optional radio diagnostics for every wireless device, imported or not: last
-  radio packet, signal strength, repeater count, active flag and operating
-  state; see [Radio diagnostics](docs/RADIO_DIAGNOSTICS.md)
+  radio packet, signal strength, repeater count, active flag, operating state
+  and low battery (an energy-harvesting valve's energy store); see
+  [Radio diagnostics](docs/RADIO_DIAGNOSTICS.md)
 
 ## Live-verified device matrix
 

@@ -115,6 +115,7 @@ def _build_radio_sensors(
     entry_id: str,
     radio: RadioState,
     device_info: DeviceInfo,
+    _imported: bool,
 ) -> list[SensorEntity]:
     sensors: list[SensorEntity] = [
         Plan44LastRadioPacketSensor(coordinator, entry_id, radio, device_info),

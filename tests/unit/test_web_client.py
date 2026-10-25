@@ -606,6 +606,8 @@ _VALVE: dict[str, Any] = {
     "x-p44-rssi": -71,
     "x-p44-repeaterCount": 1,
     "x-p44-opStateText": "-71dBm1 Rep., ",
+    "binaryInputDescriptions": {"low_battery": {"sensorFunction": 12}},
+    "binaryInputStates": {"low_battery": {"value": False}},
 }
 _TIMED_OUT_VALVE: dict[str, Any] = {
     "dSUID": "VALVE-A52001",
@@ -616,6 +618,8 @@ _TIMED_OUT_VALVE: dict[str, Any] = {
     "x-p44-rssi": None,
     "x-p44-repeaterCount": None,
     "x-p44-opStateText": "timeout, unseen",
+    "binaryInputDescriptions": {"low_battery": {"sensorFunction": 12}},
+    "binaryInputStates": {"low_battery": {"value": None}},
 }
 _ROCKER: dict[str, Any] = {
     "dSUID": "ROCKER-F602",
@@ -662,6 +666,8 @@ def test_parse_radio_states_turns_the_packet_age_into_a_timestamp() -> None:
         repeater_count=1,
         has_repeater_count=True,
         op_state="-71dBm1 Rep., ",
+        low_battery=False,
+        has_low_battery=True,
     )
 
 
@@ -719,6 +725,59 @@ def test_parse_radio_states_rejects_implausible_values(field: str, bad: Any) -> 
         "x-p44-opStateText": valve.op_state,
     }
     assert parsed[field] is None
+
+
+def test_parse_radio_states_reads_the_low_battery_input() -> None:
+    """A valve's energy store comes through its input with sensorFunction 12."""
+    radio = parse_radio_states(
+        _state_payload([_VALVE, _TIMED_OUT_VALVE, _ROCKER]), _RADIO_NOW
+    )
+    valve = radio[str(_VALVE["dSUID"])]
+    assert (valve.has_low_battery, valve.low_battery) == (True, False)
+    # Timed out: the bridge has no fresh value for the input either.
+    silent = radio[str(_TIMED_OUT_VALVE["dSUID"])]
+    assert (silent.has_low_battery, silent.low_battery) == (True, None)
+    # A rocker has no such input at all.
+    rocker = radio[str(_ROCKER["dSUID"])]
+    assert (rocker.has_low_battery, rocker.low_battery) == (False, None)
+
+
+@pytest.mark.parametrize(
+    "inputs, expected",
+    [
+        # (sensorFunction, value) per input -> (has_low_battery, low_battery)
+        ([(12, True)], (True, True)),
+        ([(7, True), (12, False)], (True, False)),  # a smoke alarm is no battery
+        ([(7, True)], (False, None)),
+        ([(12, False), (12, None)], (True, None)),
+        ([(12, None), (12, True)], (True, True)),
+        ([(12, "low")], (True, None)),
+    ],
+)
+def test_low_battery_folds_several_inputs_into_one(
+    inputs: list[tuple[int, Any]], expected: tuple[bool, bool | None]
+) -> None:
+    node = {
+        **_VALVE,
+        "binaryInputDescriptions": {
+            f"in{i}": {"sensorFunction": fn} for i, (fn, _) in enumerate(inputs)
+        },
+        "binaryInputStates": {
+            f"in{i}": {"value": value} for i, (_, value) in enumerate(inputs)
+        },
+    }
+    valve = parse_radio_states(_state_payload([node]), _RADIO_NOW)[str(_VALVE["dSUID"])]
+    assert (valve.has_low_battery, valve.low_battery) == expected
+
+
+def test_low_battery_pairs_list_shaped_inputs_by_position() -> None:
+    node = {
+        **_VALVE,
+        "binaryInputDescriptions": [{"sensorFunction": 7}, {"sensorFunction": 12}],
+        "binaryInputStates": [{"value": False}, {"value": True}],
+    }
+    valve = parse_radio_states(_state_payload([node]), _RADIO_NOW)[str(_VALVE["dSUID"])]
+    assert (valve.has_low_battery, valve.low_battery) == (True, True)
 
 
 def _radio_at(last_packet: datetime | None) -> RadioState:

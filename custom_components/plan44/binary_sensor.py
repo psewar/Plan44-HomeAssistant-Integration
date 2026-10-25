@@ -99,8 +99,17 @@ def _build_radio_inputs(
     entry_id: str,
     radio: RadioState,
     device_info: DeviceInfo,
+    imported: bool,
 ) -> list[BinarySensorEntity]:
-    return [Plan44RadioActiveBinarySensor(coordinator, entry_id, radio, device_info)]
+    inputs: list[BinarySensorEntity] = [
+        Plan44RadioActiveBinarySensor(coordinator, entry_id, radio, device_info)
+    ]
+    # An imported device already has its low-battery input as a channel entity.
+    if radio.has_low_battery and not imported:
+        inputs.append(
+            Plan44LowBatteryBinarySensor(coordinator, entry_id, radio, device_info)
+        )
+    return inputs
 
 
 class Plan44RestBinarySensor(BinarySensorEntity):
@@ -237,6 +246,23 @@ class Plan44RadioActiveBinarySensor(Plan44RadioEntity, BinarySensorEntity):
     @callback
     def _update_from_radio(self, radio: RadioState) -> None:
         self._attr_is_on = radio.active
+
+
+class Plan44LowBatteryBinarySensor(Plan44RadioEntity, BinarySensorEntity):
+    """The device's low-battery input; for an energy-harvesting valve its store.
+
+    A Micropelt valve reports a draining energy store long before it gives up
+    (A5-20-06: the ES bit, about 25 % left); once empty it parks at 50 % open
+    and stops transmitting. Unknown while the bridge has no fresh value — vdcd
+    drops an input that was not refreshed within its alive interval (40 min).
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.BATTERY
+    _attr_translation_key = "low_battery"
+
+    @callback
+    def _update_from_radio(self, radio: RadioState) -> None:
+        self._attr_is_on = radio.low_battery
 
 
 class Plan44BridgeConnectivity(Plan44BridgeEntity, BinarySensorEntity):

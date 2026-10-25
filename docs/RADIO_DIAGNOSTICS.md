@@ -28,6 +28,7 @@ on radio devices, so that property alone decides which devices get them.
 | **Repeater count** | `x-p44-repeaterCount` | Repeaters the last packet passed through; `0` = received directly. EnOcean only. |
 | **Active** (Yes/No) | `active` | The bridge's own verdict whether the device is still present. |
 | **Operating state** | `x-p44-opStateText` | The bridge's one-line summary, e.g. `-68dBm1 Rep., ` or `timeout, unseen`. |
+| **Low battery** | binary input with `sensorFunction` 12 | The device's low-battery input. For an energy-harvesting valve it is the energy store, see below. **Unknown** while the bridge has no fresh value. Only for devices that have such an input and are not imported, because an imported device already shows the input as one of its channels. |
 
 All of them are diagnostic entities. An imported device keeps them on its own
 Home Assistant device. Any other device gets a diagnostics-only device, named
@@ -40,12 +41,12 @@ with every poll.
 
 Example values from a P44-DSB-E2 (vdcd 2.8.4.6):
 
-| Device | Last radio packet | Signal | Repeaters | Active | Operating state |
-|---|---|---|---|---|---|
-| MVA009 heating valve | 2 min ago | −71 dBm | 1 | Yes | `-71dBm1 Rep., ` |
-| MVA004 heating valve | 5 min ago | −70 dBm | 0 | Yes | `-70dBm` |
-| MVA004 heating valve, silent | unknown | unknown | unknown | No | `timeout, unseen` |
-| Rocker switch, not pressed | unknown | unknown | unknown | Yes | `unseen` |
+| Device | Last radio packet | Signal | Repeaters | Active | Low battery | Operating state |
+|---|---|---|---|---|---|---|
+| MVA009 heating valve | 2 min ago | −71 dBm | 1 | Yes | Normal | `-71dBm1 Rep., ` |
+| MVA004 heating valve | 5 min ago | −70 dBm | 0 | Yes | Normal | `-70dBm` |
+| MVA004 heating valve, silent | unknown | unknown | unknown | No | unknown | `timeout, unseen` |
+| Rocker switch, not pressed | unknown | unknown | unknown | Yes | — | `unseen` |
 
 ## What "Active" does and does not tell you
 
@@ -67,6 +68,35 @@ A5-20-06 valves to an 8-hour wake cycle. In heating mode they report every 2, 5
 or 10 minutes. An alert threshold of a few hours therefore fires in summer.
 Pause such an alert outside the heating season, or use a longer threshold
 then.
+
+## Energy-harvesting valves
+
+Micropelt valves power themselves from the radiator's heat and keep a reserve
+in an internal store. When more energy is used than harvested over a longer
+time, the valve reports it with its energy-storage bit (A5-20-06: the ES bit,
+at about 25 % left; an MVA004 sets the A5-20-01 bit vdcd reads in step with it).
+The bridge passes that on as the **Low battery** input. If the store keeps
+draining, the valve opens to at least 50 % and stops transmitting until the
+radiator has recharged it. From then on **Last radio packet** shows the
+silence as well.
+
+The input goes **unknown** when the valve has not reported within its alive
+interval (40 min): vdcd then drops the value rather than keep a stale one.
+
+Whether a valve is harvesting right now is **not available**: vdcd only writes
+that bit to its log and has no property for it.
+
+## What the diagnostics cannot show: a valve that no longer hears the bridge
+
+An A5-20-06 valve that gets no answers from the bridge (after six attempts)
+sets a radio-error bit, keeps regulating on its own and transmits only **once an
+hour** from then on. The bridge still receives those packets. The valve
+therefore stays active, its last radio packet is never older than about an
+hour, and a two-hour alert does not fire, even though the valve no longer
+follows the room controller. vdcd logs the bit (`communication ERROR`) but has
+no property for it. The visible symptom is a valve whose **Last radio packet**
+keeps reaching 40–60 minutes, where a healthy one is refreshed every 2–10
+minutes.
 
 ## Example: alert when a valve stops transmitting
 
@@ -93,6 +123,10 @@ triggers:
     entity_id: binary_sensor.mva009_living_room_active
     to: "off"
     id: inactive
+  - trigger: state
+    entity_id: binary_sensor.mva009_living_room_low_battery
+    to: "on"
+    id: energy
   # Daily re-check of the states a Home Assistant restart leaves untriggered.
   - trigger: time
     at: "08:00:00"
@@ -101,7 +135,7 @@ conditions:
   - condition: or
     conditions:
       - condition: trigger
-        id: [silent, unseen, inactive]
+        id: [silent, unseen, inactive, energy]
       - condition: state
         entity_id: sensor.mva009_living_room_last_radio_packet
         state: unknown
@@ -109,11 +143,14 @@ conditions:
       - condition: state
         entity_id: binary_sensor.mva009_living_room_active
         state: "off"
+      - condition: state
+        entity_id: binary_sensor.mva009_living_room_low_battery
+        state: "on"
 actions:
   - action: notify.notify
     data:
       message: >-
-        Heating valve silent ({{ trigger.id }}):
+        Heating valve ({{ trigger.id }}):
         {{ state_attr(trigger.entity_id, 'friendly_name')
            if trigger.entity_id else 'daily check' }}
 ```
@@ -121,8 +158,9 @@ actions:
 Restarts are why the daily check is there. Automations attach their triggers
 only once Home Assistant has started, and a `state … for` trigger reacts to a
 state *change*. After a restart a valve is usually `unknown` already by then,
-so the `unseen` trigger does not fire. The `state` conditions measure `for` from the last change, so
-they still work after a restart once Home Assistant has run for two hours.
+so the `unseen` trigger does not fire. The `state` conditions measure `for`
+from the last change, so they still work after a restart once Home Assistant
+has run for two hours.
 
 One gap remains without templates. The `time … offset` trigger is re-armed on
 start, but only for a deadline that is still ahead, and no native condition

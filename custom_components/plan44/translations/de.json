@@ -57,7 +57,7 @@
         },
         "data_description": {
           "verify_ssl": "Deaktivieren, um die TLS-Zertifikatsprüfung zu überspringen. Nur als temporäre Übergangslösung verwenden, wenn das Bridge-Zertifikat von einer internen CA ausgestellt wurde.",
-          "radio_diagnostics": "Ergänzt jedes Funkgerät, von dem die Bridge Funkpakete empfängt (EnOcean), um Diagnose-Entitäten – ob importiert oder nicht: letztes Funkpaket, Signalstärke, Anzahl Repeater, Aktiv und den Betriebszustand laut Bridge. Zeigt, wenn ein Gerät nicht mehr funkt. Benötigt Web-API-Benutzer und -Passwort oben.",
+          "radio_diagnostics": "Ergänzt jedes Funkgerät, von dem die Bridge Funkpakete empfängt (EnOcean), um Diagnose-Entitäten – ob importiert oder nicht: letztes Funkpaket, Signalstärke, Anzahl Repeater, Aktiv, den Betriebszustand laut Bridge und, wo das Gerät einen hat, Batterie schwach (bei Ventilen mit Energy Harvesting: Energiespeicher leer). Zeigt, wenn ein Gerät nicht mehr funkt. Benötigt Web-API-Benutzer und -Passwort oben.",
           "realtime_enabled": "Schiebt Werte importierter Geräte (inkl. Rohsensoren wie Beschleunigung) in Echtzeit per SSH-Tunnel zur Bridge-API. Benötigt den SSH-Benutzer + Private-Key unten; das Polling bleibt als Fallback aktiv.",
           "ssh_host": "Leer lassen, um den Verbindungs-Host zu verwenden. IP oder Hostname eintragen, falls SSH die Bridge unter einer anderen Adresse erreichen muss als die Web-/TCP-API (z. B. die LAN-IP, wenn Port 22 des öffentlichen Hostnamens woanders hin geroutet wird).",
           "ssh_private_key": "Private Key (PEM) eines dedizierten, nur-Forward-fähigen SSH-Keys auf der Bridge. Den kompletten Key inkl. BEGIN/END-Zeilen einfügen.",
@@ -165,6 +165,9 @@
           "on": "Ja",
           "off": "Nein"
         }
+      },
+      "low_battery": {
+        "name": "Batterie schwach"
       }
     },
     "button": {

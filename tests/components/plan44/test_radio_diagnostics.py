@@ -76,6 +76,8 @@ def _radio(
     repeater_count: int | None = 1,
     has_repeater_count: bool = True,
     op_state: str | None = "-71dBm1 Rep., ",
+    low_battery: bool | None = False,
+    has_low_battery: bool = True,
 ) -> RadioState:
     return RadioState(
         dsuid=dsuid,
@@ -87,6 +89,8 @@ def _radio(
         repeater_count=repeater_count,
         has_repeater_count=has_repeater_count,
         op_state=op_state,
+        low_battery=low_battery,
+        has_low_battery=has_low_battery,
     )
 
 
@@ -101,6 +105,7 @@ _RADIO = {
         rssi=None,
         repeater_count=None,
         op_state="timeout, unseen",
+        low_battery=None,
     ),
 }
 
@@ -432,7 +437,79 @@ async def test_radio_query_asks_the_bridge_for_the_radio_properties() -> None:
         "x-p44-rssi",
         "x-p44-repeaterCount",
         "x-p44-opStateText",
+        "binaryInputDescriptions",
+        "binaryInputStates",
     } <= set(device_query)
+    # Narrowed to what the low-battery status needs (half the reply size).
+    assert device_query["binaryInputDescriptions"] == {"*": {"sensorFunction": None}}
+    assert device_query["binaryInputStates"] == {"*": {"value": None}}
+
+
+async def test_low_battery_shows_for_radio_devices_that_have_the_input(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """A valve's energy store, as a diagnostic battery sensor."""
+    entry = _make_entry(hass)
+    rocker = _radio("ROCKER", "Rocker", has_low_battery=False, low_battery=None)
+    drained = {
+        **_RADIO,
+        "ROCKER": rocker,
+        _VALVE: _radio(_VALVE, "MVA009 Living Room", low_battery=True),
+    }
+    with _radio_patch(side_effect=[{**_RADIO, "ROCKER": rocker}, drained]):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        entity_id = _entity_id(
+            hass, "binary_sensor", f"{entry.entry_id}_{_VALVE}_low_battery"
+        )
+        state = hass.states.get(entity_id)
+        assert state is not None
+        assert state.state == "off"
+        assert state.attributes.get("device_class") == "battery"
+        reg = async_get_entity_registry(hass).async_get(entity_id)
+        assert reg is not None and reg.entity_category is EntityCategory.DIAGNOSTIC
+        # No fresh value from the bridge: unknown, not "fine".
+        dead = f"{entry.entry_id}_{_DEAD_VALVE}_low_battery"
+        assert _state(hass, _entity_id(hass, "binary_sensor", dead)) == "unknown"
+        # A device without the input gets none.
+        assert (
+            async_get_entity_registry(hass).async_get_entity_id(
+                "binary_sensor", DOMAIN, f"{entry.entry_id}_ROCKER_low_battery"
+            )
+            is None
+        )
+
+        dc = entry.runtime_data.device_coordinator
+        assert dc is not None
+        await dc.async_refresh()
+        await hass.async_block_till_done()
+
+    assert _state(hass, entity_id) == "on"
+
+
+async def test_imported_device_gets_no_second_low_battery_entity(
+    hass: HomeAssistant, mock_plan44_client: Any
+) -> None:
+    """The import already shows its low-battery input as a channel entity."""
+    entry = _make_entry(hass)
+    _import_smoke_detector(hass, entry)
+    radio = {**_RADIO, _SMOKE: _radio(_SMOKE, "SmokeHall", repeater_count=0)}
+    with (
+        patch(
+            "custom_components.plan44.web_client.Plan44WebApi.async_get_states",
+            new=AsyncMock(return_value={_SMOKE: {"sensor": {"temperature": 22.6}}}),
+        ),
+        _radio_patch(return_value=radio),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = async_get_entity_registry(hass)
+    uid = f"{entry.entry_id}_{_SMOKE}_low_battery"
+    assert registry.async_get_entity_id("binary_sensor", DOMAIN, uid) is None
+    # ...while the radio diagnostics themselves are there.
+    _entity_id(hass, "binary_sensor", f"{entry.entry_id}_{_SMOKE}_active")
 
 
 async def test_options_flow_offers_radio_diagnostics(

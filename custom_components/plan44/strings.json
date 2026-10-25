@@ -57,7 +57,7 @@
         },
         "data_description": {
           "verify_ssl": "Disable to skip TLS certificate verification. Use only as a temporary workaround when the bridge certificate is issued by an internal CA.",
-          "radio_diagnostics": "Adds diagnostic entities to every wireless device the bridge receives radio packets from (EnOcean), imported or not: last radio packet, signal strength, repeater count, active, and the bridge's operating state. Shows when a device has stopped transmitting. Needs the web API user and password above.",
+          "radio_diagnostics": "Adds diagnostic entities to every wireless device the bridge receives radio packets from (EnOcean), imported or not: last radio packet, signal strength, repeater count, active, the bridge's operating state and, where the device has one, low battery (for energy-harvesting valves: energy store low). Shows when a device has stopped transmitting. Needs the web API user and password above.",
           "realtime_enabled": "Push imported-device values (including raw sensors like acceleration) in real time by tunnelling to the bridge API over SSH. Requires the SSH user + private key below; polling stays active as a fallback.",
           "ssh_host": "Leave empty to use the connection host. Set an IP or hostname if SSH must reach the bridge at a different address than the web/TCP API (e.g. the LAN IP, when the public hostname's port 22 routes elsewhere).",
           "ssh_private_key": "Private key (PEM) for a dedicated, forward-only SSH key on the bridge. Paste the full key including the BEGIN/END lines.",
@@ -165,6 +165,9 @@
           "on": "Yes",
           "off": "No"
         }
+      },
+      "low_battery": {
+        "name": "Low battery"
       }
     },
     "button": {

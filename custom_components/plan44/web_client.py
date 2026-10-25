@@ -144,7 +144,7 @@ class LightChannelState:
 
 @dataclass(frozen=True, slots=True)
 class RadioState:
-    """What the bridge knows about the radio link of one wireless device."""
+    """What the bridge knows about the radio link and energy of one wireless device."""
 
     dsuid: str
     name: str
@@ -162,6 +162,11 @@ class RadioState:
     has_repeater_count: bool
     # The bridge's one-line summary, e.g. "-68dBm1 Rep., " or "timeout, unseen".
     op_state: str | None
+    # The device's low-battery input; for an energy-harvesting valve, its
+    # energy store. None while the bridge has no fresh value: vdcd drops an
+    # input that was not refreshed within its alive interval.
+    low_battery: bool | None = None
+    has_low_battery: bool = False  # whether the device has such an input
 
 
 def default_web_url(host: str | None) -> str | None:
@@ -540,6 +545,10 @@ _RADIO_QUERY: dict[str, Any] = {
                         "x-p44-rssi": None,
                         "x-p44-repeaterCount": None,
                         "x-p44-opStateText": None,
+                        # Only what the low-battery status needs: the full
+                        # descriptions would double the size of the reply.
+                        "binaryInputDescriptions": {"*": {"sensorFunction": None}},
+                        "binaryInputStates": {"*": {"value": None}},
                     }
                 }
             }
@@ -809,6 +818,31 @@ def _iter_radio_nodes(payload: Any) -> list[dict[str, Any]]:
     return found
 
 
+# dS binary input sensorFunction for "low battery". Energy-harvesting valves
+# report their energy store through it (A5-20-06: the ES bit).
+_LOW_BATTERY_FUNCTION = 12
+
+
+def _low_battery(dev: dict[str, Any]) -> tuple[bool, bool | None]:
+    """Whether *dev* has a low-battery input, and what it currently says.
+
+    Several such inputs fold into one: low if any is low, fine only if all
+    are fine, otherwise unknown.
+    """
+    states = dict(_items(dev.get("binaryInputStates")))
+    values: list[bool | None] = []
+    for key, descr in _items(dev.get("binaryInputDescriptions")):
+        if descr.get("sensorFunction") != _LOW_BATTERY_FUNCTION:
+            continue
+        value = states.get(key, {}).get("value")
+        values.append(value if isinstance(value, bool) else None)
+    if not values:
+        return False, None
+    if True in values:
+        return True, True
+    return True, (False if all(v is False for v in values) else None)
+
+
 def parse_radio_states(payload: Any, now: datetime) -> dict[str, RadioState]:
     """Map dSUID -> RadioState for every device the bridge tracks packets for.
 
@@ -826,6 +860,7 @@ def parse_radio_states(payload: Any, now: datetime) -> dict[str, RadioState]:
         rssi = dev.get("x-p44-rssi")
         repeaters = dev.get("x-p44-repeaterCount")
         op_state = dev.get("x-p44-opStateText")
+        has_low_battery, low_battery = _low_battery(dev)
         result[dsuid] = RadioState(
             dsuid=dsuid,
             name=str(dev.get("name") or dsuid),
@@ -840,6 +875,8 @@ def parse_radio_states(payload: Any, now: datetime) -> dict[str, RadioState]:
             repeater_count=int(repeaters) if _is_finite_number(repeaters) else None,
             has_repeater_count="x-p44-repeaterCount" in dev,
             op_state=op_state if isinstance(op_state, str) else None,
+            low_battery=low_battery,
+            has_low_battery=has_low_battery,
         )
     return result
 
