@@ -34,6 +34,7 @@ from .const import (
     CONF_BRIDGE_API_PORT,
     CONF_HOST,
     CONF_PORT,
+    CONF_RADIO_DIAGNOSTICS,
     CONF_REALTIME_ENABLED,
     CONF_RECONNECT_INTERVAL,
     CONF_RESET_SSH_HOST_KEY,
@@ -54,6 +55,7 @@ from .const import (
     DEFAULT_BLOCKLIST_INTEGRATIONS,
     DEFAULT_BRIDGE_API_PORT,
     DEFAULT_PORT,
+    DEFAULT_RADIO_DIAGNOSTICS,
     DEFAULT_REALTIME_ENABLED,
     DEFAULT_RECONNECT_INTERVAL,
     DEFAULT_REVERSE_ENABLED,
@@ -192,6 +194,10 @@ def _options_schema(
             vol.Optional(
                 CONF_VERIFY_SSL,
                 default=current.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+            ): bool,
+            vol.Optional(
+                CONF_RADIO_DIAGNOSTICS,
+                default=current.get(CONF_RADIO_DIAGNOSTICS, DEFAULT_RADIO_DIAGNOSTICS),
             ): bool,
             vol.Optional(
                 CONF_REALTIME_ENABLED,

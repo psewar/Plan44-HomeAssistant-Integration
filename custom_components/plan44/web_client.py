@@ -3,7 +3,7 @@
 The plan44 web UI exposes the vdc API at ``POST <base>/api/json/vdc`` behind
 HTTP Digest auth.  This client mirrors that: it enumerates devices (with their
 sensor/binary-input descriptions, from which HA channel specs are derived) and
-reads their current values.
+reads their current values, plus the radio link of wireless devices.
 
 Digest auth is not supported by aiohttp, so the blocking request runs in an
 executor via urllib (which has HTTPDigestAuthHandler).  The bridge uses a
@@ -22,10 +22,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
 from typing import Any, TypeGuard
 
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .const import DEVICE_ACTIVE
 
@@ -138,6 +140,36 @@ class LightChannelState:
     saturation: float | None  # 0.0–100.0; None for non-colour lights
     x: float | None  # CIE x chromaticity; None for non-colour lights
     y: float | None  # CIE y chromaticity; None for non-colour lights
+
+
+@dataclass(frozen=True, slots=True)
+class RadioState:
+    """What the bridge knows about the radio link and energy of one wireless device."""
+
+    dsuid: str
+    name: str
+    model: str
+    # The bridge's own verdict whether the device is still present. vdcd never
+    # clears it for some profiles (an A5-20-06 valve has no alive check at
+    # all), so it is no substitute for last_packet. None: the bridge did not say.
+    active: bool | None
+    # When the bridge last received a packet from the device. None while it
+    # has received none since the bridge (vdcd) started.
+    last_packet: datetime | None
+    rssi: int | None  # dBm of the last packet; None while unseen
+    repeater_count: int | None  # repeaters the last packet passed; None while unseen
+    # Whether the bridge reports repeaters for this radio at all (EnOcean does).
+    has_repeater_count: bool
+    # The bridge's one-line summary, e.g. "-68dBm1 Rep., " or "timeout, unseen".
+    op_state: str | None
+    # The device's low-battery input; for an energy-harvesting valve, its
+    # energy store. None while the bridge has no fresh value: vdcd drops an
+    # input that was not refreshed within its alive interval.
+    low_battery: bool | None = None
+    has_low_battery: bool = False  # whether the device has such an input
+    # Time between the last two packets seen on consecutive polls (see
+    # with_packet_interval). None until two packets have been seen.
+    packet_interval: timedelta | None = None
 
 
 def default_web_url(host: str | None) -> str | None:
@@ -264,6 +296,13 @@ class Plan44WebApi:
             self._request_sync, _LIGHT_STATES_QUERY
         )
         return parse_light_states(payload, dsuids)
+
+    async def async_get_radio_states(self) -> dict[str, RadioState]:
+        payload = await self._hass.async_add_executor_job(
+            self._request_sync, _RADIO_QUERY
+        )
+        # The packet ages count back from the moment the reply arrived.
+        return parse_radio_states(payload, dt_util.utcnow())
 
     def _set_channels_sync(
         self, dsuid: str, channels: dict[str, float], transition: float | None
@@ -486,6 +525,33 @@ _LIGHT_STATES_QUERY: dict[str, Any] = {
                         "dSUID": None,
                         "active": None,
                         "channelStates": None,
+                    }
+                }
+            }
+        }
+    },
+}
+
+_RADIO_QUERY: dict[str, Any] = {
+    "method": "getProperty",
+    "dSUID": "",
+    "query": {
+        "x-p44-vdcs": {
+            "*": {
+                "x-p44-devices": {
+                    "*": {
+                        "dSUID": None,
+                        "name": None,
+                        "model": None,
+                        "active": None,
+                        "x-p44-packetAge": None,
+                        "x-p44-rssi": None,
+                        "x-p44-repeaterCount": None,
+                        "x-p44-opStateText": None,
+                        # Only what the low-battery status needs: the full
+                        # descriptions would double the size of the reply.
+                        "binaryInputDescriptions": {"*": {"sensorFunction": None}},
+                        "binaryInputStates": {"*": {"value": None}},
                     }
                 }
             }
@@ -733,3 +799,136 @@ def parse_push_light_channel_states(
         x=_channel_state_value(channel_states, "x"),
         y=_channel_state_value(channel_states, "y"),
     )
+
+
+def _iter_radio_nodes(payload: Any) -> list[dict[str, Any]]:
+    """Yield device nodes that carry the bridge's radio packet age."""
+    found: list[dict[str, Any]] = []
+
+    def visit(node: Any, depth: int) -> None:
+        if depth > _MAX_PARSE_DEPTH:
+            return
+        if isinstance(node, dict):
+            if "dSUID" in node and "x-p44-packetAge" in node:
+                found.append(node)
+            for value in node.values():
+                visit(value, depth + 1)
+        elif isinstance(node, list):
+            for value in node:
+                visit(value, depth + 1)
+
+    visit(payload, 0)
+    return found
+
+
+# dS binary input sensorFunction for "low battery". Energy-harvesting valves
+# report their energy store through it (A5-20-06: the ES bit).
+_LOW_BATTERY_FUNCTION = 12
+
+
+def _low_battery(dev: dict[str, Any]) -> tuple[bool, bool | None]:
+    """Whether *dev* has a low-battery input, and what it currently says.
+
+    Several such inputs fold into one: low if any is low, fine only if all
+    are fine, otherwise unknown.
+    """
+    states = dict(_items(dev.get("binaryInputStates")))
+    values: list[bool | None] = []
+    for key, descr in _items(dev.get("binaryInputDescriptions")):
+        if descr.get("sensorFunction") != _LOW_BATTERY_FUNCTION:
+            continue
+        value = states.get(key, {}).get("value")
+        values.append(value if isinstance(value, bool) else None)
+    if not values:
+        return False, None
+    if True in values:
+        return True, True
+    return True, (False if all(v is False for v in values) else None)
+
+
+def parse_radio_states(payload: Any, now: datetime) -> dict[str, RadioState]:
+    """Map dSUID -> RadioState for every device the bridge tracks packets for.
+
+    The bridge has ``x-p44-packetAge`` only on radio devices (EnOcean, and
+    likewise ELDAT and ZF) and leaves the key out on everything else, so its
+    presence is what selects the devices — no guessing from names or models.
+    The age counts back from *now*, the moment the reply arrived, which keeps
+    the timestamp independent of the bridge's own clock.
+    """
+    result: dict[str, RadioState] = {}
+    for dev in _iter_radio_nodes(payload):
+        dsuid = str(dev["dSUID"])
+        age = dev.get("x-p44-packetAge")
+        active = dev.get("active")
+        rssi = dev.get("x-p44-rssi")
+        repeaters = dev.get("x-p44-repeaterCount")
+        op_state = dev.get("x-p44-opStateText")
+        has_low_battery, low_battery = _low_battery(dev)
+        result[dsuid] = RadioState(
+            dsuid=dsuid,
+            name=str(dev.get("name") or dsuid),
+            model=str(dev.get("model") or ""),
+            active=active if isinstance(active, bool) else None,
+            last_packet=(
+                (now - timedelta(seconds=age)).replace(microsecond=0)
+                if _is_finite_number(age) and age >= 0
+                else None
+            ),
+            rssi=int(rssi) if _is_finite_number(rssi) else None,
+            repeater_count=int(repeaters) if _is_finite_number(repeaters) else None,
+            has_repeater_count="x-p44-repeaterCount" in dev,
+            op_state=op_state if isinstance(op_state, str) else None,
+            low_battery=low_battery,
+            has_low_battery=has_low_battery,
+        )
+    return result
+
+
+# The bridge measures the packet age and the timestamp is derived here, so the
+# very same packet comes out a little differently on every poll (network and
+# scheduling delay). Within this window the earlier timestamp is kept; a really
+# new packet moves it by the device's whole send interval.
+_LAST_PACKET_JITTER = timedelta(seconds=10)
+
+
+def steady_last_packet(previous: RadioState | None, current: RadioState) -> RadioState:
+    """Return *current*, keeping *previous*'s timestamp if it is the same packet.
+
+    Without this the "last radio packet" sensor would change state on every
+    poll and flood the recorder, and a ``time`` trigger on it would be re-armed
+    on every poll.
+    """
+    if (
+        previous is None
+        or previous.last_packet is None
+        or current.last_packet is None
+        or abs(current.last_packet - previous.last_packet) > _LAST_PACKET_JITTER
+    ):
+        return current
+    return replace(current, last_packet=previous.last_packet)
+
+
+def with_packet_interval(
+    previous: RadioState | None, current: RadioState
+) -> RadioState:
+    """Return *current* with the time since the packet before its last one.
+
+    A Micropelt valve that no longer hears the bridge falls back to one packet
+    an hour (instead of every 2-10 min) while the bridge keeps it active; this
+    interval is what gives it away. It is measured between polls: a new packet
+    after a known one sets it, and it stays until the next new packet. Packets
+    closer together than the poll interval count as one. *current* must
+    already be steadied (steady_last_packet), or every poll would look like a
+    new packet.
+    """
+    if previous is None:
+        return current
+    if (
+        current.last_packet is not None
+        and previous.last_packet is not None
+        and current.last_packet > previous.last_packet
+    ):
+        return replace(
+            current, packet_interval=current.last_packet - previous.last_packet
+        )
+    return replace(current, packet_interval=previous.packet_interval)

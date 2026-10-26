@@ -1,7 +1,8 @@
 """Polling coordinator for REST-discovered plan44 devices.
 
 Periodically reads sensor/binary-input states and light channel states for all
-imported (dSUID-based) p44_device subentries from the web vdc JSON API.
+imported (dSUID-based) p44_device subentries from the web vdc JSON API — and,
+with radio diagnostics on, the radio link of every wireless bridge device.
 """
 
 from __future__ import annotations
@@ -20,18 +21,27 @@ from .const import (
     ATTR_DSUID,
     ATTR_PLATFORM,
     DEVICE_ACTIVE,
+    DEVICE_RADIO,
     DOMAIN,
     ISSUE_WEB_API_UNREACHABLE,
     KIND_LIGHT,
     SUBENTRY_TYPE_P44_DEVICE,
 )
-from .web_client import Plan44WebApi, Plan44WebApiError
+from .web_client import (
+    Plan44WebApi,
+    Plan44WebApiError,
+    RadioState,
+    steady_last_packet,
+    with_packet_interval,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 # coordinator.data shape:
 #   {dsuid: {"sensor": {key: value}, "binary_sensor": {key: value}}}  for sensor devices
 #   {dsuid: {"light": LightChannelState}}                              for light devices
+#   {dsuid: {"radio": RadioState}}                                     for radio devices
+#   (the last one only with radio diagnostics on; it sits next to the channel maps)
 DeviceStates = dict[str, dict[str, Any]]
 
 
@@ -44,6 +54,7 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         entry: ConfigEntry,
         web_api: Plan44WebApi,
         interval_seconds: int,
+        radio_diagnostics: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -53,10 +64,16 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
         )
         self._entry = entry
         self._web_api = web_api
+        self._radio_diagnostics = radio_diagnostics
 
     @property
     def web_api(self) -> Plan44WebApi:
         return self._web_api
+
+    @property
+    def radio_diagnostics(self) -> bool:
+        """Whether the radio link of every wireless bridge device is polled."""
+        return self._radio_diagnostics
 
     def imported_dsuids(self) -> set[str]:
         """Collect dSUIDs from all dSUID-based p44_device subentries."""
@@ -156,10 +173,11 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
     async def _async_update_data(self) -> DeviceStates:
         sensor_dsuids = self.imported_sensor_dsuids()
         light_dsuids = self.imported_light_dsuids()
-        if not sensor_dsuids and not light_dsuids:
+        if not sensor_dsuids and not light_dsuids and not self._radio_diagnostics:
             self._set_web_api_issue(active=False)
             return {}
         states: DeviceStates = {}
+        radio_states: dict[str, RadioState] = {}
         try:
             if sensor_dsuids:
                 states = await self._web_api.async_get_states(sensor_dsuids)
@@ -169,8 +187,20 @@ class Plan44DeviceCoordinator(DataUpdateCoordinator[DeviceStates]):
                     # entry carries "light" plus the bridge's active flag, so a
                     # device that is both a sensor and a light keeps both.
                     states.setdefault(dsuid, {}).update(entry)
+            if self._radio_diagnostics:
+                radio_states = await self._web_api.async_get_radio_states()
         except Plan44WebApiError as err:
             self._set_web_api_issue(active=True)
             raise UpdateFailed(str(err)) from err
         self._set_web_api_issue(active=False)
+        previous = self.data or {}
+        for dsuid, radio in radio_states.items():
+            before = previous.get(dsuid, {}).get(DEVICE_RADIO)
+            if not isinstance(before, RadioState):
+                before = None
+            # Next to (not inside) the channel maps, and for imported and
+            # non-imported devices alike: the diagnostics exist for both.
+            states.setdefault(dsuid, {})[DEVICE_RADIO] = with_packet_interval(
+                before, steady_last_packet(before, radio)
+            )
         return states

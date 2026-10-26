@@ -54,6 +54,11 @@ from the host you already configured (`https://<host>`). See
 
 All channels of one device are grouped under a single Home Assistant device.
 
+To see when a wireless device last transmitted, you do not need to import it:
+the [radio diagnostics](RADIO_DIAGNOSTICS.md) option covers every radio device
+on the bridge. For an imported device they appear on the same Home Assistant
+device.
+
 ### New devices added later
 
 The device list is fetched fresh every time you open the import dialog, so
