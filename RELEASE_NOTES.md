@@ -44,6 +44,9 @@ had last heard from the valve. Home Assistant had no way to show it.
 
 No existing entity changes.
 
+Tested against Home Assistant 2026.10: the test suite moved from 2026.3.3 to
+2026.10.4. Nothing changes at runtime, and Home Assistant 2026.3 still works.
+
 ## 0.9.5 — 2026-10-07
 
 Calmer when the bridge restarts, and readable sensor names.

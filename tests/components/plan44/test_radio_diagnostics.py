@@ -226,7 +226,9 @@ async def test_every_radio_device_gets_diagnostic_entities(
             # Not imported, so not attributed to any sub-entry.
             assert reg.config_subentry_id is None
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, _VALVE)})
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, _VALVE), entry.entry_id
+    )
     assert device is not None
     assert device.name == "MVA009 Living Room"
     assert device.model == "Micropelt EnOcean heating valve actuator (A5-20-06)"
@@ -316,11 +318,14 @@ async def test_imported_device_keeps_its_device_and_sub_entry(
     assert packet.config_subentry_id == subentry_id
     assert active.config_subentry_id == subentry_id
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, _SMOKE)})
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, _SMOKE), entry.entry_id
+    )
     assert device is not None
     assert device.name == "Smoke detector hall"  # the import's name, not the bridge's
     # Only the import sub-entry, not also the "no sub-entry" bucket.
-    assert device.config_entries_subentries == {entry.entry_id: {subentry_id}}
+    assert device.config_entry_id == entry.entry_id
+    assert device.config_subentry_id == subentry_id
 
 
 async def test_device_learned_later_appears_on_the_next_poll(

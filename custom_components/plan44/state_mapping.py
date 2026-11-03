@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components.light import ATTR_BRIGHTNESS
+from homeassistant.components.light import (  # see light.py for why
+    ATTR_BRIGHTNESS,  # pyright: ignore[reportPrivateImportUsage]
+)
 from homeassistant.core import State
 
 from .const import KIND_BINARY_SENSOR, KIND_LIGHT, KIND_SENSOR, KIND_SWITCH
