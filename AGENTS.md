@@ -7,7 +7,7 @@ contributors and coding agents alike.
 
 ## Runtime baseline
 
-Python **3.14.3** (`.python-version`). Old-Python compatibility shims have been
+Python **3.14.10** (`.python-version`). Old-Python compatibility shims have been
 removed on purpose — write for current Python and current Home Assistant.
 
 Home Assistant **2026.3** and later (the first release on Python 3.14). CI tests

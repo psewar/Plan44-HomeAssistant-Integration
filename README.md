@@ -139,7 +139,7 @@ For safety, start with manually selected entities only.
 
 ## Runtime baseline
 
-- Python **3.14.3** is the supported baseline for this repository.
+- Python **3.14.10** is the supported baseline for this repository.
 - The code is intentionally optimized for current Python and current Home Assistant test tooling.
 - Older Python compatibility shims have been removed.
 
