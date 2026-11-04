@@ -9,7 +9,9 @@ from __future__ import annotations
 import logging
 
 import pytest
-from homeassistant.components.light import ATTR_BRIGHTNESS
+from homeassistant.components.light import (  # see light.py for why
+    ATTR_BRIGHTNESS,  # pyright: ignore[reportPrivateImportUsage]
+)
 from homeassistant.core import State
 
 from custom_components.plan44.plan44_core.models import (

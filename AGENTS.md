@@ -7,8 +7,14 @@ contributors and coding agents alike.
 
 ## Runtime baseline
 
-Python **3.14.3** (`.python-version`). Old-Python compatibility shims have been
+Python **3.14.10** (`.python-version`). Old-Python compatibility shims have been
 removed on purpose — write for current Python and current Home Assistant.
+
+Home Assistant **2026.3** and later (the first release on Python 3.14). CI tests
+and type-checks against the release pinned in `requirements_ha_test.txt`; code
+must still load on 2026.3. How the gap is bridged (the `typings/voluptuous.pyi`
+stub, `reportPrivateImportUsage` ignores) is in
+[ADR-0001](docs/adr/0001-stay-compatible-with-ha-2026-3-type-check-against-current.md).
 
 ## Branch model
 
@@ -36,6 +42,11 @@ removed on purpose — write for current Python and current Home Assistant.
   `./precommit_check.sh` runs the whole set locally. `./precommit_check.ps1` is
   the Windows fallback and covers everything **except** the component tests,
   which need Linux — run the bash script in WSL before pushing.
+- A PR that makes or changes a design decision (dependency, supported versions,
+  interface, security boundary, a deliberately rejected approach) adds an
+  architecture decision record in [`docs/adr/`](docs/adr/README.md) and names it
+  in the PR description. Accepted records are not rewritten; a new one
+  supersedes them.
 
 ## Releasing
 

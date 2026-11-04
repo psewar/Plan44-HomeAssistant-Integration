@@ -47,6 +47,9 @@ testpaths = [
   "tests",
 ]
 pythonpath = ["."]
+# As in pytest.ha.ini: the Home Assistant test plugin loads here too and brings an async autouse fixture
+# (configure_event_loop), which pytest 9 refuses for sync tests unless pytest-asyncio handles it.
+asyncio_mode = "auto"
 markers = [
   "live_p44: tests against a real plan44 bridge",
 ]

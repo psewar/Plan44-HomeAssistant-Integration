@@ -5,8 +5,10 @@ from collections.abc import Mapping
 from functools import cached_property
 from typing import Any
 
+# Public import path, see light.py: newer HA versions re-export this from .const
+# without __all__; HA 2026.3 has no binary_sensor.const yet.
 from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
+    BinarySensorDeviceClass,  # pyright: ignore[reportPrivateImportUsage]
     BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant, callback
