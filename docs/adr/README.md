@@ -6,4 +6,4 @@ rewritten: a changed decision gets a new record that supersedes the old one.
 
 | No. | Title | Status | Date |
 | --- | --- | --- | --- |
-| [0001](0001-stay-compatible-with-ha-2026-3-type-check-against-current.md) | Stay compatible with Home Assistant 2026.3, type-check against the current release | proposed | 2026-11-04 |
+| [0001](0001-stay-compatible-with-ha-2026-3-type-check-against-current.md) | Stay compatible with Home Assistant 2026.3, type-check against the current release | accepted | 2026-11-04 |
