@@ -10,11 +10,13 @@ contributors and coding agents alike.
 Python **3.14.10** (`.python-version`). Old-Python compatibility shims have been
 removed on purpose — write for current Python and current Home Assistant.
 
-Home Assistant **2026.3** and later (the first release on Python 3.14). CI tests
+Home Assistant **2026.7** and later (the first release whose cryptography
+asyncssh 2.24 accepts). `hacs.json` declares the same minimum, and the asyncssh
+range in `manifest.json` and `requirements_ha_test.txt` must match it. CI tests
 and type-checks against the release pinned in `requirements_ha_test.txt`; code
-must still load on 2026.3. How the gap is bridged (the `typings/voluptuous.pyi`
-stub, `reportPrivateImportUsage` ignores) is in
-[ADR-0001](docs/adr/0001-stay-compatible-with-ha-2026-3-type-check-against-current.md).
+must still load on 2026.7. Why, and how the gap is bridged (the
+`typings/voluptuous.pyi` stub, `reportPrivateImportUsage` ignores), is in
+[ADR-0002](docs/adr/0002-require-ha-2026-7-for-asyncssh-2-24.md).
 
 ## Branch model
 
