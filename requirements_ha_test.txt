@@ -1,5 +1,5 @@
 pytest-homeassistant-custom-component==0.13.375
-# Runtime dep of the integration (manifest); pinned <2.20 so it stays compatible
-# with Home Assistant 2026.3 and 2026.4, which ship cryptography 46.x (2.20+ needs
-# ML-KEM from cryptography 47+). HA 2026.5 and later ship 47+.
-asyncssh>=2.14.0,<2.20.0
+# Runtime dep of the integration, same range as manifest.json (ADR-0002): 2.24.0
+# fixes GHSA-rw4j-r22c-9gc3 and needs cryptography>=48.0.1, which Home Assistant
+# ships from 2026.7.
+asyncssh>=2.24.0

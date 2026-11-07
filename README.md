@@ -139,6 +139,9 @@ For safety, start with manually selected entities only.
 
 ## Runtime baseline
 
+- Home Assistant **2026.7** or later. HACS does not offer newer releases to
+  older installations; why 2026.7 is in
+  [ADR-0002](docs/adr/0002-require-ha-2026-7-for-asyncssh-2-24.md).
 - Python **3.14.10** is the supported baseline for this repository.
 - The code is intentionally optimized for current Python and current Home Assistant test tooling.
 - Older Python compatibility shims have been removed.

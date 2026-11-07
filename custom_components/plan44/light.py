@@ -8,7 +8,7 @@ from typing import Any
 
 # Public import path, as Home Assistant itself uses it. Newer HA versions re-export
 # these from .const without __all__, which pyright reads as private; importing from
-# .const instead would break HA 2026.3, which defines them in the package itself.
+# .const instead would break HA before 2026.10, which defines them in the package.
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,  # pyright: ignore[reportPrivateImportUsage]
     ATTR_COLOR_TEMP_KELVIN,  # pyright: ignore[reportPrivateImportUsage]
