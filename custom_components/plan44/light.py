@@ -6,12 +6,15 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+# Public import path, as Home Assistant itself uses it. Newer HA versions re-export
+# these from .const without __all__, which pyright reads as private; importing from
+# .const instead would break HA before 2026.10, which defines them in the package.
 from homeassistant.components.light import (
-    ATTR_BRIGHTNESS,
-    ATTR_COLOR_TEMP_KELVIN,
-    ATTR_HS_COLOR,
-    ATTR_TRANSITION,
-    ATTR_XY_COLOR,
+    ATTR_BRIGHTNESS,  # pyright: ignore[reportPrivateImportUsage]
+    ATTR_COLOR_TEMP_KELVIN,  # pyright: ignore[reportPrivateImportUsage]
+    ATTR_HS_COLOR,  # pyright: ignore[reportPrivateImportUsage]
+    ATTR_TRANSITION,  # pyright: ignore[reportPrivateImportUsage]
+    ATTR_XY_COLOR,  # pyright: ignore[reportPrivateImportUsage]
     LightEntity,
 )
 from homeassistant.components.light.const import ColorMode, LightEntityFeature

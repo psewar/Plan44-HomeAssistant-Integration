@@ -7,8 +7,16 @@ contributors and coding agents alike.
 
 ## Runtime baseline
 
-Python **3.14.3** (`.python-version`). Old-Python compatibility shims have been
+Python **3.14.10** (`.python-version`). Old-Python compatibility shims have been
 removed on purpose — write for current Python and current Home Assistant.
+
+Home Assistant **2026.7** and later (the first release whose cryptography
+asyncssh 2.24 accepts). `hacs.json` declares the same minimum, and the asyncssh
+range in `manifest.json` and `requirements_ha_test.txt` must match it. CI tests
+and type-checks against the release pinned in `requirements_ha_test.txt`; code
+must still load on 2026.7. Why, and how the gap is bridged (the
+`typings/voluptuous.pyi` stub, `reportPrivateImportUsage` ignores), is in
+[ADR-0002](docs/adr/0002-require-ha-2026-7-for-asyncssh-2-24.md).
 
 ## Branch model
 
@@ -36,6 +44,11 @@ removed on purpose — write for current Python and current Home Assistant.
   `./precommit_check.sh` runs the whole set locally. `./precommit_check.ps1` is
   the Windows fallback and covers everything **except** the component tests,
   which need Linux — run the bash script in WSL before pushing.
+- A PR that makes or changes a design decision (dependency, supported versions,
+  interface, security boundary, a deliberately rejected approach) adds an
+  architecture decision record in [`docs/adr/`](docs/adr/README.md) and names it
+  in the PR description. Accepted records are not rewritten; a new one
+  supersedes them.
 
 ## Releasing
 

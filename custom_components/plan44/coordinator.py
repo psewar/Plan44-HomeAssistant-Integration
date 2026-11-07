@@ -8,7 +8,9 @@ from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 from homeassistant.components import persistent_notification
-from homeassistant.components.light import ATTR_BRIGHTNESS
+from homeassistant.components.light import (  # see light.py for why
+    ATTR_BRIGHTNESS,  # pyright: ignore[reportPrivateImportUsage]
+)
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError

@@ -1,5 +1,28 @@
 # Release notes
 
+## 0.11.0 — 2026-11-07
+
+Requires Home Assistant 2026.7 or later, so asyncssh can move past known
+vulnerabilities.
+
+The integration held `asyncssh` below 2.20 to stay installable on Home
+Assistant 2026.3. Home Assistant installs that requirement into the
+environment all integrations share, so it kept asyncssh 2.19.0 there, which has
+three published advisories (GHSA-2wxc-x7rj-hg8f, GHSA-qr67-gv47-xwwh,
+GHSA-rw4j-r22c-9gc3). None of them is reachable through this integration's own
+SSH use, but other code in the same environment is not protected by that.
+
+- **asyncssh 2.24.0 or later** is now required. It fixes all three advisories
+  and needs cryptography 48.0.1, which Home Assistant ships from 2026.7.
+- **Minimum Home Assistant 2026.7** (`hacs.json`; it still said 2024.12).
+  HACS does not offer this release to older installations, so they keep the
+  version they have.
+- Also ends a tug-of-war with Home Assistant's own `sftp_storage` integration,
+  which requires asyncssh 2.24.0: with both in use, every start could switch
+  the installed version.
+
+See [ADR-0002](docs/adr/0002-require-ha-2026-7-for-asyncssh-2-24.md).
+
 ## 0.10.0 — 2026-10-25
 
 See when a wireless device stopped transmitting.
